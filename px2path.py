@@ -40,22 +40,41 @@ class Px2path:
         with open(filename, 'r') as f:
             elems = load(f)
 
-        points = [[int(e)  for e in elem.split(',')]
+        points = [[int(e) for e in elem.split(',')]
                   for elem in elems['0'].split(' ')]
 
         return points
 
-    def to_line(self, x=0):
-        # Generate a path line from given points positions
-        def pos(string, x=0):
-            return string.format(a * self.w + self.w / 2 + x,
-                                 b * self.w + self.w / 2)
+    def to_absolute_line(self, dx=0):
+        # Generate a path line with absolution positions (only L key)
 
-        a, b = self.points.pop(0)
-        d = pos('M{},{} L')
+        def pos(string, x, y, dx=0):
+            return string.format(x * self.w + dx,
+                                 y * self.w)
+
+        d = pos('M{},{} ', *self.points.pop(0))
         for p in self.points:
-            a, b = p
-            d += pos('{},{} ')
+            d += pos('L{},{} ', *p)
+
+        self.paths.append(Path(d=d + 'Z'))
+
+    def to_relative_line(self, dx=0):
+        # Generate a path line with relative positions (with l, v & h keys)
+
+        def pos(char, x, y, dx=0):
+            return '{}{},{} '.format(char, x * self.w + dx, y * self.w)
+
+        start = prev_point = self.points.pop(0)
+        d = pos('M', *start)
+        for point in self.points:
+            direction = [p - pp for p, pp in zip(point, prev_point)]
+            prev_point = point
+            if direction[0] == 0:
+                d += 'v{} '.format(direction[1] * self.w + dx)
+            elif direction[1] == 0:
+                d += 'h{} '.format(direction[0] * self.w + dx)
+            else:
+                d += pos('l', *direction)
 
         self.paths.append(Path(d=d + 'Z'))
 
@@ -72,5 +91,5 @@ class Px2path:
 
 
 drawing = Px2path('0.json')
-drawing.to_line()
+drawing.to_relative_line()
 drawing.generate_file()
