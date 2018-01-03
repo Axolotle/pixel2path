@@ -1,17 +1,20 @@
 import cv2
 from json import load
+
 from svgwrite import Drawing
 from svgwrite.container import Group
 from svgwrite.path import Path
+from svgwrite.shapes import Rect
 
 
 class Px2path:
     def __init__(self, filename, w=2.25):
         self.w = w
         self.paths = []
-        self.filename = filename.split('.')[0]
+        self.filename, ext = filename.split('.', -1)
+        self.closed = False
 
-        if filename.find('json') > -1:
+        if ext.lower() == 'json':
             self.points = self.from_json(filename)
         else:
             self.points = self.from_img(filename)
@@ -38,16 +41,20 @@ class Px2path:
 
     def from_json(self, filename):
         with open(filename, 'r') as f:
-            elems = load(f)
+            coordinates = load(f)['0']
 
-        points = [[int(e) for e in elem.split(',')]
-                  for elem in elems['0'].split(' ')]
+        if coordinates.find(' Z') > -1:
+            self.closed = True
+            coordinates = coordinates.replace(' Z', '')
+
+        points = [[int(axe) for axe in point.split(',')]
+                  for point in coordinates.split(' ')]
 
         return points
 
     def to_absolute_line(self, dx=0):
-        # Generate a path line with absolution positions (only L key)
-
+        """ Generate a path line with absolution positions (only L key)
+        """
         def pos(string, x, y, dx=0):
             return string.format(x * self.w + dx,
                                  y * self.w)
@@ -65,31 +72,50 @@ class Px2path:
             return '{}{},{} '.format(char, x * self.w + dx, y * self.w)
 
         start = prev_point = self.points.pop(0)
-        d = pos('M', *start)
+        d = pos('M', *start, dx=dx)
         for point in self.points:
             direction = [p - pp for p, pp in zip(point, prev_point)]
             prev_point = point
             if direction[0] == 0:
-                d += 'v{} '.format(direction[1] * self.w + dx)
+                d += 'v{} '.format(direction[1] * self.w)
             elif direction[1] == 0:
-                d += 'h{} '.format(direction[0] * self.w + dx)
+                d += 'h{} '.format(direction[0] * self.w)
             else:
                 d += pos('l', *direction)
+        if self.closed:
+            d += ' Z'
+        self.points.insert(0, start)
+        self.paths.append(Path(d=d))
 
-        self.paths.append(Path(d=d + 'Z'))
+    def draw_grid(self, max_x, max_y):
+        group = Group(fill='grey')
+        rects = [Rect(insert=(x * self.w, y * self.w), size=(self.w, self.w))
+                 for x in range(max_x) for y in range(max_y)]
+        for i, rect in enumerate(rects):
+            if i % 2 == 0:
+                rect['fill'] = "#AAAAAA"
+            group.add(rect)
+        return group
 
-    def generate_file(self):
+    def generate_file(self, grid=None):
         doc = Drawing(self.filename + '.svg', profile='tiny',
-                      size=('200px', '200px'), viewBox='0 0 200 200')
+                      size=('300px', '300px'), viewBox='0 0 15 15')
         main = Group(fill='none', stroke='black', stroke_linejoin='round',
                      stroke_width=str(self.w) + 'px', stroke_linecap='round')
+
+        if grid is not None:
+            doc.add(self.draw_grid(*grid))
+            main['opacity'] = 0.5
+            main['stroke'] = 'red'
+
         for path in self.paths:
             main.add(path)
-        main['transform'] = 'translate({},{})'.format(10, 10)
+        main['transform'] = 'translate({},{})'.format(1.125, 1.125)
         doc.add(main)
         doc.save(pretty=True)
 
 
 drawing = Px2path('0.json')
 drawing.to_relative_line()
-drawing.generate_file()
+drawing.to_relative_line(dx=drawing.w*3.5)
+drawing.generate_file(grid=[3, 5])
