@@ -66,7 +66,7 @@ class Px2path(Px2coord):
         super().__init__(filepath, characters, grid)
 
     def absolute_line(self, char, dx=0):
-        """ Generate a path line with absolution positions (only L key)
+        """ Generate a path line with absolute positions (only L key)
         """
         char = self.characters[char]
         d = str()
@@ -79,36 +79,40 @@ class Px2path(Px2coord):
 
         return Path(d=d)
 
-    def to_relative_line(self, dx=0):
-        # Generate a path line with relative positions (with l, v & h keys)
+    def relative_line(self, char, dx=0):
+        """ Generate a path line with relative positions (with l, v & h keys)
+        """
+        char = self.characters[char]
+        d = str()
+        for i, layer in enumerate(char['coords']):
+            start = prev_point = layer[0]
+            d += self.get_pos('M', start, dx)
+            for coord in layer[1:]:
+                direction = [p - pp for p, pp in zip(coord, prev_point)]
+                if direction[0] == 0:
+                    d += 'v{} '.format(direction[1] * self.w)
+                elif direction[1] == 0:
+                    d += 'h{} '.format(direction[0] * self.w)
+                else:
+                    d += self.get_pos('l', direction)
+                prev_point = coord
+            if i == 0 and char['closed']:
+                d += 'Z '
 
-        def pos(char, x, y, dx=0):
-            return '{}{},{} '.format(char, x * self.w + dx, y * self.w)
-
-        start = prev_point = self.points.pop(0)
-        d = pos('M', *start, dx=dx)
-        for point in self.points:
-            direction = [p - pp for p, pp in zip(point, prev_point)]
-            prev_point = point
-            if direction[0] == 0:
-                d += 'v{} '.format(direction[1] * self.w)
-            elif direction[1] == 0:
-                d += 'h{} '.format(direction[0] * self.w)
-            else:
-                d += pos('l', *direction)
-        if self.closed:
-            d += ' Z'
-        self.points.insert(0, start)
-        self.paths.append(Path(d=d))
+        return Path(d=d)
 
     def get_pos(self, command, pos, dx=0):
         """ Return a SVG d's command """
         return '{}{},{} '.format(command, pos[0] * self.w + dx * self.w,
                                  pos[1] * self.w)
 
-    def write(self, string):
-        paths = [ self.absolute_line(char, dx * self.x)
-                  for dx, char in enumerate(list(string))]
+    def write(self, string, absolute=True):
+        if absolute:
+            paths = [ self.absolute_line(char, dx * self.x)
+                      for dx, char in enumerate(list(string))]
+        else:
+            paths = [ self.relative_line(char, dx * self.x)
+                      for dx, char in enumerate(list(string))]
 
         self.generate_file(paths)
 
