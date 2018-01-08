@@ -11,64 +11,58 @@ from svgwrite.shapes import Rect
 from svgwrite.base import BaseElement
 
 class Px2coord:
-    def __init__(self, filepath='layers/', grid=[3,5]):
-        self.grid = grid
+    def __init__(self, filepath, characters, grid=[3,5]):
+        self.x, self.y = grid
 
         if filepath[-1] == '/':
-            self.coords = self.from_img(filepath)
-        else:
-            self.coords = self.from_json(filepath)
+            self.characters = self.from_img(filepath, characters)
 
-    def from_img(self, filepath):
+    def from_img(self, filepath, characters):
+        """
+        Read several images and parse pixel position in absolute position
+        for each characters given as argument. points's lists are ordered
+        by grey intensity.
+        """
+
         layers = [f for f in listdir(filepath) if isfile(join(filepath, f))]
-        coords_layers = []
+        char_str = list(characters)
+        # generate a dict with all characters given
+        characters = {x: {'closed': False, 'coords': []}
+                      for x in char_str}
 
         for layer in layers:
+            # Read & convert the image to greyscale
             img = cv2.imread(filepath + layer)
-            # Convert the image to greyscale
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            max_y, max_x = img.shape
-            nb_chars = round(max_x / (self.grid[0] + 1))
+            # Extract every characters from the image
+            rects = [img[1:self.y + 1, a:a + self.x]
+                     for a in range(1, len(char_str)*(self.x + 1), self.x + 1)]
 
-            coords = []
-            actual_x = 1
-            for char in range(nb_chars):
-                points = []
-                for x in range(self.grid[0]):
-                    for y in range(self.grid[1]):
-                        if img[y + 1, x + actual_x] < 255:
-                            points.append([(x, y), img[y + 1, x + actual_x]])
+            for char, rect in zip(char_str, rects):
+                # get the pixel position (x,y) and intensity if it's not white
+                points = [[(x, y), rect[y, x]]
+                          for x in range(self.x)
+                          for y in range(self.y)
+                          if rect[y, x] < 255]
 
+                if len(points) == 0:
+                    continue
                 # Sort the list by intensity
                 points = sorted(points, key=lambda info: info[1])
+                # If the light intensity of the first point is 0 (black)
+                # then the character's path has to be closed
+                if points[0][1] == 0:
+                    characters[char]['closed'] = True
                 # Remove the intensity information
                 points = [p[0] for p in points]
+                characters[char]['coords'].append(points)
 
-                actual_x += self.grid[0] + 1
-                coords.append(points)
-
-            coords_layers.append(coords)
-
-        return coords_layers
-
-    def from_json(self, filepath):
-        with open(filepath, 'r') as f:
-            coordinates = load(f)['0']
-
-        if coordinates.find(' Z') > -1:
-            self.closed = True
-            coordinates = coordinates.replace(' Z', '')
-
-        points = [[int(axe) for axe in point.split(',')]
-                  for point in coordinates.split(' ')]
-
-        return points
-
+        return characters
 
 class Px2path(Px2coord):
-    def __init__(self, filepath, grid=[3,5], w=2.25):
+    def __init__(self, filepath, characters, grid=[3,5], w=2.25):
         self.w = w
-        super().__init__(filepath, grid)
+        super().__init__(filepath, characters, grid)
 
     def to_absolute_line(self, dx=0):
         """ Generate a path line with absolution positions (only L key)
@@ -131,16 +125,3 @@ class Px2path(Px2coord):
         main['transform'] = 'translate({},{})'.format(1.125, 1.125)
         doc.add(main)
         doc.save(pretty=True)
-
-with open('lettres.txt', 'w') as f:
-    lettre = ''
-    for l in range(20, 200):
-        print(l)
-        lettre += chr(l)
-    print(lettre)
-    f.write(lettre)
-
-font = Px2path('pxpath/')
-# drawing = Px2path('0.json')
-# drawing.to_relative_line()
-# drawing.generate_file(grid=[3, 5])
