@@ -1,46 +1,58 @@
 import cv2
 from json import load
+import math
+from os import listdir
+from os.path import isfile, join
 
 from svgwrite import Drawing
 from svgwrite.container import Group
 from svgwrite.path import Path
 from svgwrite.shapes import Rect
+from svgwrite.base import BaseElement
 
+class Px2coord:
+    def __init__(self, filepath='layers/', grid=[3,5]):
+        self.grid = grid
 
-class Px2path:
-    def __init__(self, filename, w=2.25):
-        self.w = w
-        self.paths = []
-        self.filename, ext = filename.split('.', -1)
-        self.closed = False
-
-        if ext.lower() == 'json':
-            self.points = self.from_json(filename)
+        if filepath[-1] == '/':
+            self.coords = self.from_img(filepath)
         else:
-            self.points = self.from_img(filename)
+            self.coords = self.from_json(filepath)
 
-    def from_img(self, filename):
-        img = cv2.imread('0.png')
-        # Convert the image to greyscale
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        max_x, max_y = img.shape
+    def from_img(self, filepath):
+        layers = [f for f in listdir(filepath) if isfile(join(filepath, f))]
+        coords_layers = []
 
-        # Extract the colored pixels
-        px = []
-        for x in range(max_x):
-            for y in range(max_y):
-                if img[x, y] < 255:
-                    px.append([(y, x), img[x, y]])
+        for layer in layers:
+            img = cv2.imread(filepath + layer)
+            # Convert the image to greyscale
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            max_y, max_x = img.shape
+            nb_chars = round(max_x / (self.grid[0] + 1))
 
-        # Sort the list by intensity
-        points = sorted(px, key=lambda info: info[1])
-        # Remove the intensity information
-        points = [p[0] for p in points]
+            coords = []
+            actual_x = 1
+            for char in range(nb_chars):
+                points = []
+                for x in range(self.grid[0]):
+                    for y in range(self.grid[1]):
+                        if img[y + 1, x + actual_x] < 255:
+                            points.append([(x, y), img[y + 1, x + actual_x]])
 
-        return points
+                # Sort the list by intensity
+                points = sorted(points, key=lambda info: info[1])
+                # Remove the intensity information
+                points = [p[0] for p in points]
 
-    def from_json(self, filename):
-        with open(filename, 'r') as f:
+                actual_x += self.grid[0] + 1
+                coords.append(points)
+
+            coords_layers.append(coords)
+
+        return coords_layers
+
+    def from_json(self, filepath):
+        with open(filepath, 'r') as f:
             coordinates = load(f)['0']
 
         if coordinates.find(' Z') > -1:
@@ -51,6 +63,12 @@ class Px2path:
                   for point in coordinates.split(' ')]
 
         return points
+
+
+class Px2path(Px2coord):
+    def __init__(self, filepath, grid=[3,5], w=2.25):
+        self.w = w
+        super().__init__(filepath, grid)
 
     def to_absolute_line(self, dx=0):
         """ Generate a path line with absolution positions (only L key)
@@ -114,8 +132,15 @@ class Px2path:
         doc.add(main)
         doc.save(pretty=True)
 
+with open('lettres.txt', 'w') as f:
+    lettre = ''
+    for l in range(20, 200):
+        print(l)
+        lettre += chr(l)
+    print(lettre)
+    f.write(lettre)
 
-drawing = Px2path('0.json')
-drawing.to_relative_line()
-drawing.to_relative_line(dx=drawing.w*3.5)
-drawing.generate_file(grid=[3, 5])
+font = Px2path('pxpath/')
+# drawing = Px2path('0.json')
+# drawing.to_relative_line()
+# drawing.generate_file(grid=[3, 5])
