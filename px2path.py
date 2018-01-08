@@ -11,10 +11,11 @@ from svgwrite.shapes import Rect
 from svgwrite.base import BaseElement
 
 class Px2coord:
-    def __init__(self, filepath, characters, grid=[3,5]):
+    def __init__(self, filepath, characters, grid):
         self.x, self.y = grid
 
         if filepath[-1] == '/':
+            self.filename = filepath.strip('/')
             self.characters = self.from_img(filepath, characters)
 
     def from_img(self, filepath, characters):
@@ -60,22 +61,23 @@ class Px2coord:
         return characters
 
 class Px2path(Px2coord):
-    def __init__(self, filepath, characters, grid=[3,5], w=2.25):
+    def __init__(self, filepath, characters, grid, w=2.25):
         self.w = w
         super().__init__(filepath, characters, grid)
 
-    def to_absolute_line(self, dx=0):
+    def absolute_line(self, char, dx=0):
         """ Generate a path line with absolution positions (only L key)
         """
-        def pos(string, x, y, dx=0):
-            return string.format(x * self.w + dx,
-                                 y * self.w)
+        char = self.characters[char]
+        d = str()
+        for i, layer in enumerate(char['coords']):
+            d += self.get_pos('M', layer[0], dx)
+            for coord in layer[1:]:
+                d += self.get_pos('L', coord, dx)
+            if i == 0 and char['closed']:
+                d += 'Z '
 
-        d = pos('M{},{} ', *self.points.pop(0))
-        for p in self.points:
-            d += pos('L{},{} ', *p)
-
-        self.paths.append(Path(d=d + 'Z'))
+        return Path(d=d)
 
     def to_relative_line(self, dx=0):
         # Generate a path line with relative positions (with l, v & h keys)
@@ -99,6 +101,17 @@ class Px2path(Px2coord):
         self.points.insert(0, start)
         self.paths.append(Path(d=d))
 
+    def get_pos(self, command, pos, dx=0):
+        """ Return a SVG d's command """
+        return '{}{},{} '.format(command, pos[0] * self.w + dx * self.w,
+                                 pos[1] * self.w)
+
+    def write(self, string):
+        paths = [ self.absolute_line(char, dx * self.x)
+                  for dx, char in enumerate(list(string))]
+
+        self.generate_file(paths)
+
     def draw_grid(self, max_x, max_y):
         group = Group(fill='grey')
         rects = [Rect(insert=(x * self.w, y * self.w), size=(self.w, self.w))
@@ -109,19 +122,21 @@ class Px2path(Px2coord):
             group.add(rect)
         return group
 
-    def generate_file(self, grid=None):
+    def generate_file(self, paths):
+        x = self.w * (self.x * len(paths) + 1)
+        y = self.w * self.y + 2
+        size = ('{}px'.format(x),
+                '{}px'.format(y))
+        viewBox = '0 0 {} {}'.format(x, y)
+
         doc = Drawing(self.filename + '.svg', profile='tiny',
-                      size=('300px', '300px'), viewBox='0 0 15 15')
+                      size=size, viewBox=viewBox)
         main = Group(fill='none', stroke='black', stroke_linejoin='round',
                      stroke_width=str(self.w) + 'px', stroke_linecap='round')
 
-        if grid is not None:
-            doc.add(self.draw_grid(*grid))
-            main['opacity'] = 0.5
-            main['stroke'] = 'red'
-
-        for path in self.paths:
+        for path in paths:
             main.add(path)
-        main['transform'] = 'translate({},{})'.format(1.125, 1.125)
+
+        main['transform'] = 'translate({},{})'.format(self.w/2, self.w/2)
         doc.add(main)
         doc.save(pretty=True)
