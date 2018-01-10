@@ -9,4 +9,5 @@ options = {
 }
 
 font = Px2path(**options)
-font.write('ABCDEFGHIJ')
+# font.write('ABCDEFGHIJ', False)
+font.rel_path('D')

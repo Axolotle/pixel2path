@@ -85,21 +85,58 @@ class Px2path(Px2coord):
         char = self.characters[char]
         d = str()
         for i, layer in enumerate(char['coords']):
-            start = prev_point = layer[0]
+            start = prev_pt = layer[0]
             d += self.get_pos('M', start, dx)
             for coord in layer[1:]:
-                direction = [p - pp for p, pp in zip(coord, prev_point)]
+                direction = [p - pp for p, pp in zip(coord, prev_pt)]
                 if direction[0] == 0:
                     d += 'v{} '.format(direction[1] * self.w)
                 elif direction[1] == 0:
                     d += 'h{} '.format(direction[0] * self.w)
                 else:
                     d += self.get_pos('l', direction)
-                prev_point = coord
+                prev_pt = coord
             if i == 0 and char['closed']:
                 d += 'Z '
 
         return Path(d=d)
+
+    def rel_path(self, char, dx=0):
+        def unit_vector(x, y):
+            magnitude = math.hypot(x, y)
+            return (x / magnitude, y / magnitude)
+
+        def rotation(x, y, deg):
+            rad = math.radians(deg)
+            cos, sin = math.cos(rad), math.sin(rad)
+            return (cos * x - sin * y,
+                    sin * x + cos * y)
+
+        def mult(vector):
+            decal = self.w / 2
+            return (vector[0] * decal, vector[1] * decal)
+        def mult2(vector):
+            return (vector[0] * self.w, vector[1] * self.w)
+
+        char = self.characters[char]
+        outer_d = inner_d = str()
+        for l, layer in enumerate(char['coords']):
+            a, b, c = layer[-1], layer[0], layer[1]
+            vector_a = [p1 - p2 for p1, p2 in zip(b, a)]
+            vector_c = [p1 - p2 for p1, p2 in zip(b, c)]
+            unit_vector_a = unit_vector(*vector_a)
+            unit_vector_c = unit_vector(*vector_c)
+
+            outer_a = rotation(*unit_vector_a, -90)
+            test = rotation(*unit_vector_c, 90)
+
+            d1 = 'M{},{} L{},{} L{},{}'.format(*mult2(a), *mult2(b), *mult2(c))
+            #d = 'M{},{} l{},{}'.format(*mult2(b), *mult(outer_a))
+            d = 'M{},{} l{},{}'.format(*mult2(b), *mult(test))
+            paths = [Path(d=d1, stroke='red'), Path(d=d, stroke_width='1px')]
+            self.generate_file(paths)
+
+            return
 
     def get_pos(self, command, pos, dx=0):
         """ Return a SVG d's command """
@@ -108,11 +145,11 @@ class Px2path(Px2coord):
 
     def write(self, string, absolute=True):
         if absolute:
-            paths = [ self.absolute_line(char, dx * self.x)
-                      for dx, char in enumerate(list(string))]
+            paths = [self.absolute_line(char, dx * self.x)
+                     for dx, char in enumerate(list(string))]
         else:
-            paths = [ self.relative_line(char, dx * self.x)
-                      for dx, char in enumerate(list(string))]
+            paths = [self.relative_line(char, dx * self.x)
+                     for dx, char in enumerate(list(string))]
 
         self.generate_file(paths)
 
