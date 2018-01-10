@@ -60,6 +60,27 @@ class Px2coord:
 
         return characters
 
+class Vector(tuple):
+    def __new__(self, *args):
+        value = args[0] if len(args) == 1 else args
+        return tuple.__new__(Vector, value)
+
+    def unit_vector(self):
+        magnitude = math.hypot(self[0], self[1])
+        return Vector(self[0] / magnitude, self[1] / magnitude)
+
+    def direction(self, other):
+        return Vector(self[0] - other[0], self[1] - other[1])
+
+    def rotate(self, theta):
+        """ Rotate vector of angle theta given in deg
+        """
+        rad = math.radians(theta)
+        cos, sin = math.cos(rad), math.sin(rad)
+        return Vector(cos * self[0] - sin * self[1],
+                      sin * self[0] + cos * self[1])
+
+
 class Px2path(Px2coord):
     def __init__(self, filepath, characters, grid, w=2.25):
         self.w = w
@@ -121,14 +142,8 @@ class Px2path(Px2coord):
         char = self.characters[char]
         outer_d = inner_d = str()
         for l, layer in enumerate(char['coords']):
-            a, b, c = layer[-1], layer[0], layer[1]
-            vector_a = [p1 - p2 for p1, p2 in zip(b, a)]
-            vector_c = [p1 - p2 for p1, p2 in zip(b, c)]
-            unit_vector_a = unit_vector(*vector_a)
-            unit_vector_c = unit_vector(*vector_c)
-
-            outer_a = rotation(*unit_vector_a, -90)
-            test = rotation(*unit_vector_c, 90)
+            a, b, c = Vector(*layer[-1]), Vector(layer[0]), Vector(layer[1])
+            test = b.direction(c).unit_vector().rotate(90)
 
             d1 = 'M{},{} L{},{} L{},{}'.format(*mult2(a), *mult2(b), *mult2(c))
             #d = 'M{},{} l{},{}'.format(*mult2(b), *mult(outer_a))
