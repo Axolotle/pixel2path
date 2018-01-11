@@ -10,6 +10,48 @@ from svgwrite.path import Path
 from svgwrite.shapes import Rect
 from svgwrite.base import BaseElement
 
+
+class Point(tuple):
+    def __new__(self, *args):
+        value = args[0] if len(args) == 1 else args
+        return tuple.__new__(Point, value)
+
+    def __init__(self, *args):
+        value = args[0] if len(args) == 1 else args
+        self.x, self.y = value
+
+    def vector(self, other):
+        return Vector(other.x - self.x, other.y - self.y)
+
+    def distance(self, other):
+        return self.vector(other).norm()
+
+class Vector(tuple):
+    def __new__(self, *args):
+        value = args[0] if len(args) == 1 else args
+        return tuple.__new__(Vector, value)
+
+    def __init__(self, *args):
+        value = args[0] if len(args) == 1 else args
+        self.x, self.y = value
+
+    def norm(self):
+        return math.hypot(self.x, self.y)
+
+    def unit_vector(self):
+        return Vector(self.x / self.norm(), self.y / self.norm())
+
+    def direction(self, other):
+        return Vector(self.x - other.x, self.y - other.y)
+
+    def rotate(self, theta):
+        """ Rotate vector of angle theta given in deg
+        """
+        rad = math.radians(theta)
+        cos, sin = math.cos(rad), math.sin(rad)
+        return Vector(cos * self.x - sin * self.y,
+                      sin * self.x + cos * self.y)
+
 class Px2coord:
     def __init__(self, filepath, characters, grid):
         self.x, self.y = grid
@@ -24,7 +66,6 @@ class Px2coord:
         for each characters given as argument. points's lists are ordered
         by grey intensity.
         """
-
         layers = [f for f in listdir(filepath) if isfile(join(filepath, f))]
         char_str = list(characters)
         # generate a dict with all characters given
@@ -41,7 +82,7 @@ class Px2coord:
 
             for char, rect in zip(char_str, rects):
                 # get the pixel position (x,y) and intensity if it's not white
-                points = [[(x, y), rect[y, x]]
+                points = [[Point(x, y), rect[y, x]]
                           for x in range(self.x)
                           for y in range(self.y)
                           if rect[y, x] < 255]
@@ -59,27 +100,6 @@ class Px2coord:
                 characters[char]['coords'].append(points)
 
         return characters
-
-class Vector(tuple):
-    def __new__(self, *args):
-        value = args[0] if len(args) == 1 else args
-        return tuple.__new__(Vector, value)
-
-    def unit_vector(self):
-        magnitude = math.hypot(self[0], self[1])
-        return Vector(self[0] / magnitude, self[1] / magnitude)
-
-    def direction(self, other):
-        return Vector(self[0] - other[0], self[1] - other[1])
-
-    def rotate(self, theta):
-        """ Rotate vector of angle theta given in deg
-        """
-        rad = math.radians(theta)
-        cos, sin = math.cos(rad), math.sin(rad)
-        return Vector(cos * self[0] - sin * self[1],
-                      sin * self[0] + cos * self[1])
-
 
 class Px2path(Px2coord):
     def __init__(self, filepath, characters, grid, w=2.25):
@@ -123,16 +143,6 @@ class Px2path(Px2coord):
         return Path(d=d)
 
     def rel_path(self, char, dx=0):
-        def unit_vector(x, y):
-            magnitude = math.hypot(x, y)
-            return (x / magnitude, y / magnitude)
-
-        def rotation(x, y, deg):
-            rad = math.radians(deg)
-            cos, sin = math.cos(rad), math.sin(rad)
-            return (cos * x - sin * y,
-                    sin * x + cos * y)
-
         def mult(vector):
             decal = self.w / 2
             return (vector[0] * decal, vector[1] * decal)
@@ -142,8 +152,9 @@ class Px2path(Px2coord):
         char = self.characters[char]
         outer_d = inner_d = str()
         for l, layer in enumerate(char['coords']):
-            a, b, c = Vector(*layer[-1]), Vector(layer[0]), Vector(layer[1])
-            test = b.direction(c).unit_vector().rotate(90)
+            a, b, c = layer[-1], layer[0], layer[1]
+            test = a.vector(b).unit_vector().rotate(90)
+
 
             d1 = 'M{},{} L{},{} L{},{}'.format(*mult2(a), *mult2(b), *mult2(c))
             #d = 'M{},{} l{},{}'.format(*mult2(b), *mult(outer_a))
