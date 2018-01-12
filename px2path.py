@@ -26,6 +26,15 @@ class Point(tuple):
     def distance(self, other):
         return self.vector(other).norm()
 
+    def __add__(self, other):
+        return Point(self.x + other.x, self.y + other.y)
+
+    def __radd__(self, n):
+        return Point(self.x + n, self.y + n)
+
+    def __rmult__(self, n):
+        return Point(self.x * n, self.y * n)
+
 class Vector(tuple):
     def __new__(self, *args):
         value = args[0] if len(args) == 1 else args
@@ -41,9 +50,6 @@ class Vector(tuple):
     def unit_vector(self):
         return Vector(self.x / self.norm(), self.y / self.norm())
 
-    def direction(self, other):
-        return Vector(self.x - other.x, self.y - other.y)
-
     def rotate(self, theta):
         """ Rotate vector of angle theta given in deg
         """
@@ -51,6 +57,45 @@ class Vector(tuple):
         cos, sin = math.cos(rad), math.sin(rad)
         return Vector(cos * self.x - sin * self.y,
                       sin * self.x + cos * self.y)
+
+    def point(self, point, div=1):
+        return Point(point.x + self.x, point.x + self.y)
+
+    def __rmul__(self, n):
+        return Vector(self.x * n, self.y * n)
+
+    def __mul__(self, other):
+        return Vector(self.x * other.x + self.y * other.y)
+
+    def __add__(self, other):
+        return Vector(self.x + other.x, self.y + other.y)
+
+class Line:
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b if isinstance(b, Point) else b.point(a)
+
+    def vector(self):
+        """ Return the vector of the line
+        """
+        return self.a.vector(self.b)
+
+    def intersection(self, other):
+        a, b, c, d = self.a, self.b, other.a, other.b
+        i, j = self.vector(), other.vector()
+
+        div = i.x * j.y - i.y * j.x
+
+        if div != 0:
+            # if i & j are not parallel
+            # k = (j.x * a.y - j.x * c.y - j.y * a.x + j.y * c.x) / div
+            # return Point(a + k * i)
+            m = (i.x * a.y - i.x * c.y - i.y * a.x + i.y * c.x) / div
+            # check if lines intersect
+            if m > 0 and m < 1:
+                return Point(c + m * j)
+            else:
+                return None
 
 class Px2coord:
     def __init__(self, filepath, characters, grid):
@@ -69,7 +114,7 @@ class Px2coord:
         layers = [f for f in listdir(filepath) if isfile(join(filepath, f))]
         char_str = list(characters)
         # generate a dict with all characters given
-        characters = {x: {'closed': False, 'coords': []}
+        characters = {x: {'closed': False, 'points': []}
                       for x in char_str}
 
         for layer in layers:
@@ -97,7 +142,7 @@ class Px2coord:
                     characters[char]['closed'] = True
                 # Remove the intensity information
                 points = [p[0] for p in points]
-                characters[char]['coords'].append(points)
+                characters[char]['points'].append(points)
 
         return characters
 
@@ -111,7 +156,7 @@ class Px2path(Px2coord):
         """
         char = self.characters[char]
         d = str()
-        for i, layer in enumerate(char['coords']):
+        for i, layer in enumerate(char['points']):
             d += self.get_pos('M', layer[0], dx)
             for coord in layer[1:]:
                 d += self.get_pos('L', coord, dx)
@@ -125,7 +170,7 @@ class Px2path(Px2coord):
         """
         char = self.characters[char]
         d = str()
-        for i, layer in enumerate(char['coords']):
+        for i, layer in enumerate(char['points']):
             start = prev_pt = layer[0]
             d += self.get_pos('M', start, dx)
             for coord in layer[1:]:
@@ -145,21 +190,30 @@ class Px2path(Px2coord):
     def rel_path(self, char, dx=0):
         def mult(vector):
             decal = self.w / 2
-            return (vector[0] * decal, vector[1] * decal)
+            return Vector(vector[0] * decal, vector[1] * decal)
         def mult2(vector):
-            return (vector[0] * self.w, vector[1] * self.w)
+            return Vector(vector[0] * self.w, vector[1] * self.w)
 
         char = self.characters[char]
         outer_d = inner_d = str()
-        for l, layer in enumerate(char['coords']):
+        for l, layer in enumerate(char['points']):
             a, b, c = layer[-1], layer[0], layer[1]
-            test = a.vector(b).unit_vector().rotate(90)
 
+            vec1 = 0.5 * a.vector(b).unit_vector().rotate(-90)
+            p1 = b + vec1
+            p2 = a + vec1
+            d1 = Line(p1, p2)
 
-            d1 = 'M{},{} L{},{} L{},{}'.format(*mult2(a), *mult2(b), *mult2(c))
-            #d = 'M{},{} l{},{}'.format(*mult2(b), *mult(outer_a))
-            d = 'M{},{} l{},{}'.format(*mult2(b), *mult(test))
-            paths = [Path(d=d1, stroke='red'), Path(d=d, stroke_width='1px')]
+            vec2 = 0.5 * b.vector(c).unit_vector().rotate(-90)
+            p3 = b + vec2
+            p4 = c + vec2
+            d2 = Line(p3, p4)
+
+            intersection = d1.intersection(d2)
+
+            d1 = 'M{},{} L{},{} L{},{}'.format(*a, *b, *c)
+            d = 'M{},{} L{},{}'.format(*b, *intersection)
+            paths = [Path(d=d1, stroke='red'), Path(d=d, stroke_width='0.1px')]
             self.generate_file(paths)
 
             return
@@ -192,14 +246,14 @@ class Px2path(Px2coord):
     def generate_file(self, paths):
         x = self.w * (self.x * len(paths) + 1)
         y = self.w * self.y + 2
-        size = ('{}px'.format(x),
-                '{}px'.format(y))
+        size = ('{}px'.format(x*10),
+                '{}px'.format(y*10))
         viewBox = '0 0 {} {}'.format(x, y)
 
         doc = Drawing(self.filename + '.svg', profile='tiny',
                       size=size, viewBox=viewBox)
         main = Group(fill='none', stroke='black', stroke_linejoin='round',
-                     stroke_width=str(self.w) + 'px', stroke_linecap='round')
+                     stroke_width=str(1) + 'px', stroke_linecap='round')
 
         for path in paths:
             main.add(path)
