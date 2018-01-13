@@ -7,6 +7,7 @@ from svgwrite.container import Group
 from svgwrite.path import Path
 from svgwrite.shapes import Rect
 from svgwrite.base import BaseElement
+from base_objects import Point, Line
 
 
 class Px2coord:
@@ -118,13 +119,8 @@ class Px2path(Px2coord):
                     a, b, c = layer[i-1], layer[i], layer[0]
 
                 if i == 0 and not char['closed']:
-                    print('coucou')
-                    vec1 = 0.5 * b.vector(c).unit_vector().rotate(-90)
-                    vec2 = 0.5 * b.vector(c).unit_vector().rotate(90)
-                    p1, p2 = b + vec1, b + vec2
-                    outer.append(p1)
-                    inner.append(p2)
-                    print(p1, p2)
+                    outer.append(b.parallel(c, -90, 0.5))
+                    inner.append(b.parallel(c, 90, 0.5))
                 else:
                     outer.append(self.get_intersection(a, b, c, -90))
                     inner.append(self.get_intersection(a, b, c, 90))
@@ -163,7 +159,6 @@ class Px2path(Px2coord):
                         d += 'M{},{}'.format(*value)
                     else:
                         d += 'L{},{}'.format(*value)
-            d += 'Z'
         else:
             point = inner[0]
             d += 'A 0.5 0.5 0 0 1 {},{}'.format(*point)
@@ -172,23 +167,18 @@ class Px2path(Px2coord):
                     d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
                 else:
                     d += 'L{},{}'.format(*value)
-            d += 'Z'
+        d += 'Z'
         return d
 
     def get_intersection(self, a, b, c, theta):
-        vec1 = 0.5 * a.vector(b).unit_vector().rotate(theta)
-        p1, p2 = b + vec1, a + vec1
-        d1 = Line(p1, p2)
-
-        vec2 = 0.5 * b.vector(c).unit_vector().rotate(theta)
-        p3, p4 = b + vec2, c + vec2
-        d2 = Line(p3, p4)
+        d1 = Line(a, b).parallel(theta, 0.5)
+        d2 = Line(b, c).parallel(theta, 0.5)
 
         intersection = d1.intersection(d2)
         if intersection:
             return intersection
         elif intersection is None:
-            return Line(p1, p3)
+            return Line(d1.b, d2.a)
 
     def get_pos(self, command, pos, dx=0):
         """ Return a SVG d's command """

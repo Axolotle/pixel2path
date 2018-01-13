@@ -16,6 +16,10 @@ class Point(tuple):
     def distance(self, other):
         return self.vector(other).norm()
 
+    def parallel(self, other, theta, distance):
+        vector = distance * self.vector(other).unit_vector().rotate(theta)
+        return Point(self + vector)
+
     def __add__(self, other):
         return Point(self.x + other.x, self.y + other.y)
 
@@ -76,8 +80,8 @@ class Line:
 
         div = i.x * j.y - i.y * j.x
 
+        # check if i & j are not parallel
         if div != 0:
-            # if i & j are not parallel
             # k = (j.x * a.y - j.x * c.y - j.y * a.x + j.y * c.x) / div
             # return Point(a + k * i)
             m = (i.x * a.y - i.x * c.y - i.y * a.x + i.y * c.x) / div
@@ -86,3 +90,7 @@ class Line:
                 return Point(c + m * j)
             else:
                 return None
+
+    def parallel(self, theta, distance):
+        vector = distance * self.vector().unit_vector().rotate(theta)
+        return Line(self.a + vector, self.b + vector)
