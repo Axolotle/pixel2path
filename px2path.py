@@ -92,7 +92,7 @@ class Line:
             # return Point(a + k * i)
             m = (i.x * a.y - i.x * c.y - i.y * a.x + i.y * c.x) / div
             # check if lines intersect
-            if m > 0 and m < 1:
+            if 0 < m < 1:
                 return Point(c + m * j)
             else:
                 return None
@@ -195,28 +195,88 @@ class Px2path(Px2coord):
             return Vector(vector[0] * self.w, vector[1] * self.w)
 
         char = self.characters[char]
-        outer_d = inner_d = str()
+
         for l, layer in enumerate(char['points']):
-            a, b, c = layer[-1], layer[0], layer[1]
+            outer = list()
+            inner = list()
+            for i, phase in enumerate(layer):
+                if i < len(layer)- 1:
+                    a, b, c = layer[i-1], layer[i], layer[i+1]
+                else:
+                    a, b, c = layer[i-1], layer[i], layer[0]
 
-            vec1 = 0.5 * a.vector(b).unit_vector().rotate(-90)
-            p1 = b + vec1
-            p2 = a + vec1
-            d1 = Line(p1, p2)
+                if i == 0 and not char['closed']:
+                    print('coucou')
+                    vec1 = 0.5 * b.vector(c).unit_vector().rotate(-90)
+                    vec2 = 0.5 * b.vector(c).unit_vector().rotate(90)
+                    p1, p2 = b + vec1, b + vec2
+                    outer.append(p1)
+                    inner.append(p2)
+                    print(p1, p2)
+                else:
+                    outer.append(self.get_intersection(a, b, c, -90))
+                    inner.append(self.get_intersection(a, b, c, 90))
 
-            vec2 = 0.5 * b.vector(c).unit_vector().rotate(-90)
-            p3 = b + vec2
-            p4 = c + vec2
-            d2 = Line(p3, p4)
-
-            intersection = d1.intersection(d2)
-
-            d1 = 'M{},{} L{},{} L{},{}'.format(*a, *b, *c)
-            d = 'M{},{} L{},{}'.format(*b, *intersection)
-            paths = [Path(d=d1, stroke='red'), Path(d=d, stroke_width='0.1px')]
+            #d1 = 'M{},{} L{},{} L{},{}'.format(*a, *b, *c)
+            paths = [
+                #Path(d=d1, stroke='red'),
+                Path(d=self.generate_string(outer, list(reversed(inner)), char['closed']), fill='red', stroke='none',stroke_width='0.1px'),
+            ]
             self.generate_file(paths)
-
             return
+
+    def generate_string(self, outer, inner, closed):
+        d = str()
+        for i, value in enumerate(outer):
+            if isinstance(value, Line):
+                if i == 0:
+                    d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                else:
+                    d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+            else:
+                if i == 0:
+                    d += 'M{},{}'.format(*value)
+                else:
+                    d += 'L{},{}'.format(*value)
+        if closed:
+            d += 'Z '
+            for j, value in enumerate(inner):
+                if isinstance(value, Line):
+                    if j == 0:
+                        d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                    else:
+                        d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                else:
+                    if j == 0:
+                        d += 'M{},{}'.format(*value)
+                    else:
+                        d += 'L{},{}'.format(*value)
+            d += 'Z'
+        else:
+            point = inner[0]
+            d += 'A 0.5 0.5 0 0 1 {},{}'.format(*point)
+            for j, value in enumerate(inner[1:]):
+                if isinstance(value, Line):
+                    d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                else:
+                    d += 'L{},{}'.format(*value)
+            d += 'Z'
+        return d
+
+    def get_intersection(self, a, b, c, theta):
+        vec1 = 0.5 * a.vector(b).unit_vector().rotate(theta)
+        p1, p2 = b + vec1, a + vec1
+        d1 = Line(p1, p2)
+
+        vec2 = 0.5 * b.vector(c).unit_vector().rotate(theta)
+        p3, p4 = b + vec2, c + vec2
+        d2 = Line(p3, p4)
+
+        intersection = d1.intersection(d2)
+        if intersection:
+            return intersection
+        elif intersection is None:
+            return Line(p1, p3)
 
     def get_pos(self, command, pos, dx=0):
         """ Return a SVG d's command """
@@ -246,8 +306,8 @@ class Px2path(Px2coord):
     def generate_file(self, paths):
         x = self.w * (self.x * len(paths) + 1)
         y = self.w * self.y + 2
-        size = ('{}px'.format(x*10),
-                '{}px'.format(y*10))
+        size = ('{}px'.format(x*15),
+                '{}px'.format(y*15))
         viewBox = '0 0 {} {}'.format(x, y)
 
         doc = Drawing(self.filename + '.svg', profile='tiny',
