@@ -7,6 +7,7 @@ from svgwrite.container import Group
 from svgwrite.path import Path
 from svgwrite.shapes import Rect
 from svgwrite.base import BaseElement
+
 from base_objects import Point, Line
 
 
@@ -109,7 +110,11 @@ class Px2path(Px2coord):
 
         char = self.characters[char]
 
+        paths = list()
+
         for l, layer in enumerate(char['points']):
+            # if l != 6:
+            #     continue
             outer = list()
             inner = list()
             for i, phase in enumerate(layer):
@@ -120,23 +125,26 @@ class Px2path(Px2coord):
 
                 if i == 0 and not char['closed']:
                     outer.append(b.parallel(c, -90, 0.5))
-                    inner.append(b.parallel(c, 90, 0.5))
+                    outer.insert(0, b.parallel(c, 90, 0.5))
+                elif i == len(layer) -1 and not char['closed']:
+                    outer.append(b.parallel(a, 90, 0.5))
+                    inner.insert(0, b.parallel(a, -90, 0.5))
                 else:
                     outer.append(self.get_intersection(a, b, c, -90))
-                    inner.append(self.get_intersection(a, b, c, 90))
+                    inner.insert(0, self.get_intersection(a, b, c, 90))
 
-            #d1 = 'M{},{} L{},{} L{},{}'.format(*a, *b, *c)
-            paths = [
-                #Path(d=d1, stroke='red'),
-                Path(d=self.generate_string(outer, list(reversed(inner)), char['closed']), fill='red', stroke='none',stroke_width='0.1px'),
-            ]
-            self.generate_file(paths)
-            return
+            paths.append(Path(d=self.generate_string(outer, inner, char['closed']), fill='red', stroke='none',stroke_width='0.1px'))
+
+        self.generate_file(paths)
+
 
     def generate_string(self, outer, inner, closed):
         d = str()
         for i, value in enumerate(outer):
-            if isinstance(value, Line):
+            if i == 1 and not closed:
+                d += 'A 0.5 0.5 0 0 1 {},{}'.format(*value)
+            elif isinstance(value, Line):
+                print(value.a.vector(value.b))
                 if i == 0:
                     d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
                 else:
@@ -150,10 +158,11 @@ class Px2path(Px2coord):
             d += 'Z '
             for j, value in enumerate(inner):
                 if isinstance(value, Line):
+                    print(value.a.vector(value.b))
                     if j == 0:
-                        d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                        d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.b, *value.a)
                     else:
-                        d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                        d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.b, *value.a)
                 else:
                     if j == 0:
                         d += 'M{},{}'.format(*value)
@@ -164,21 +173,19 @@ class Px2path(Px2coord):
             d += 'A 0.5 0.5 0 0 1 {},{}'.format(*point)
             for j, value in enumerate(inner[1:]):
                 if isinstance(value, Line):
-                    d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
+                    # print(value.a.vector(value.b))
+                    d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.b, *value.a)
                 else:
                     d += 'L{},{}'.format(*value)
         d += 'Z'
         return d
 
     def get_intersection(self, a, b, c, theta):
-        d1 = Line(a, b).parallel(theta, 0.5)
-        d2 = Line(b, c).parallel(theta, 0.5)
-
+        d1, d2 = Line(a, b).parallel(theta, 0.5), Line(b, c).parallel(theta, 0.5)
         intersection = d1.intersection(d2)
-        if intersection:
-            return intersection
-        elif intersection is None:
+        if intersection is None:
             return Line(d1.b, d2.a)
+        return intersection
 
     def get_pos(self, command, pos, dx=0):
         """ Return a SVG d's command """
