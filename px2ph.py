@@ -2,8 +2,8 @@ from svgwrite import Drawing
 from svgwrite.container import Group
 from svgwrite.path import Path
 
-from base_objects import Point, Line
-from px2pt import Px2Pt
+from .base_objects import Point, Line
+from .px2pt import Px2Pt
 
 
 class Px2Ph(Px2Pt):
@@ -82,7 +82,6 @@ class Px2Ph(Px2Pt):
             if i == 1 and not closed:
                 d += 'A 0.5 0.5 0 0 1 {},{}'.format(*value)
             elif isinstance(value, Line):
-                print(value.a.vector(value.b))
                 if i == 0:
                     d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.a, *value.b)
                 else:
@@ -96,7 +95,6 @@ class Px2Ph(Px2Pt):
             d += 'Z '
             for j, value in enumerate(inner):
                 if isinstance(value, Line):
-                    print(value.a.vector(value.b))
                     if j == 0:
                         d += 'M{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.b, *value.a)
                     else:
@@ -111,7 +109,6 @@ class Px2Ph(Px2Pt):
             d += 'A 0.5 0.5 0 0 1 {},{}'.format(*point)
             for j, value in enumerate(inner[1:]):
                 if isinstance(value, Line):
-                    # print(value.a.vector(value.b))
                     d += 'L{},{} A 0.5 0.5 0 0 1 {},{}'.format(*value.b, *value.a)
                 else:
                     d += 'L{},{}'.format(*value)

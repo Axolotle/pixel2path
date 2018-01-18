@@ -2,7 +2,7 @@ import cv2
 from os import listdir
 from os.path import isfile, join
 
-from base_objects import Point
+from .base_objects import Point
 
 
 class Px2Pt:
