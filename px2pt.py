@@ -1,38 +1,40 @@
 import cv2
 from os import listdir
-from os.path import isfile, join
+from os.path import isfile, join, splitext
 
 from .base_objects import Point
 
 
 class Px2Pt:
-    def __init__(self, filepath, characters, grid):
+    def __init__(self, filepath, glyphs, grid):
         self.x, self.y = grid
 
         if filepath[-1] == '/':
             self.filename = filepath.strip('/')
-            self.characters = self.from_img(filepath, characters)
+            self.glyphs = self.from_img(filepath, glyphs)
 
-    def from_img(self, filepath, characters):
+    def from_img(self, filepath, glyphs):
         """
         Read several images and parse pixel position in absolute position
-        for each characters given as argument. points's lists are ordered
+        for each glyphs given as argument. points's lists are ordered
         by grey intensity.
         """
-        layers = [f for f in listdir(filepath) if isfile(join(filepath, f))]
-        char_str = list(characters)
-        # generate a dict with all characters given
-        characters = {x: {'closed': False, 'points': []} for x in char_str}
+        layers = [f for f in listdir(filepath)
+                  if isfile(join(filepath, f))
+                  and splitext(filepath)[1] is '.png']
+        glyph_str = list(glyphs)
+        # generate a di0ct with all glyphs given
+        glyphs = {glypĥ: {'closed': False, 'points': []} for glypĥ in glyph_str}
 
         for layer in layers:
             # Read & convert the image to greyscale
             img = cv2.imread(filepath + layer)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # Extract every characters from the image
+            # Extract every glyphs from the image
             rects = [img[1:self.y + 1, a:a + self.x]
-                     for a in range(1, len(char_str)*(self.x + 1), self.x + 1)]
+                     for a in range(1, len(glyph_str)*(self.x + 1), self.x + 1)]
 
-            for char, rect in zip(char_str, rects):
+            for glyph, rect in zip(glyph_str, rects):
                 # get the pixel position (x,y) and intensity if it's not white
                 points = [[Point(x, y), rect[y, x]]
                           for x in range(self.x)
@@ -46,9 +48,9 @@ class Px2Pt:
                 # If the light intensity of the first point is 0 (black)
                 # then the character's path has to be closed
                 if points[0][1] == 0:
-                    characters[char]['closed'] = True
+                    glyphs[glyph]['closed'] = True
                 # Remove the intensity information
                 points = [p[0] for p in points]
-                characters[char]['points'].append(points)
+                glyphs[glyph]['points'].append(points)
 
-        return characters
+        return glyphs

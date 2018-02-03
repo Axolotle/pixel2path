@@ -23,6 +23,9 @@ class Point(tuple):
     def __add__(self, other):
         return Point(self.x + other.x, self.y + other.y)
 
+    def __sub__(self, other):
+        return Point(self.x - other.x, self.y - other.y)
+
     def __radd__(self, n):
         return Point(self.x + n, self.y + n)
 

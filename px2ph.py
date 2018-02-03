@@ -7,30 +7,30 @@ from .px2pt import Px2Pt
 
 
 class Px2Ph(Px2Pt):
-    def __init__(self, filepath, characters, grid, w=2.25):
+    def __init__(self, filepath, glyphs, grid, w=2.25):
         self.w = w
-        super().__init__(filepath, characters, grid)
+        super().__init__(filepath, glyphs, grid)
 
-    def absolute_line(self, char, dx=0):
+    def absolute_line(self, glyph, dx=0):
         """ Generate a path line with absolute positions (only L key)
         """
-        char = self.characters[char]
+        glyph = self.glyphs[glyph]
         d = str()
-        for i, layer in enumerate(char['points']):
+        for i, layer in enumerate(glyph['points']):
             d += self.get_pos('M', layer[0], dx)
             for coord in layer[1:]:
                 d += self.get_pos('L', coord, dx)
-            if i == 0 and char['closed']:
+            if i == 0 and glyph['closed']:
                 d += 'Z '
 
         return Path(d=d)
 
-    def relative_line(self, char, dx=0):
+    def relative_line(self, glyph, dx=0):
         """ Generate a path line with relative positions (with l, v & h keys)
         """
-        char = self.characters[char]
+        glyph = self.glyphs[glyph]
         d = str()
-        for i, layer in enumerate(char['points']):
+        for i, layer in enumerate(glyph['points']):
             start = prev_pt = layer[0]
             d += self.get_pos('M', start, dx)
             for coord in layer[1:]:
@@ -42,17 +42,17 @@ class Px2Ph(Px2Pt):
                 else:
                     d += self.get_pos('l', direction)
                 prev_pt = coord
-            if i == 0 and char['closed']:
+            if i == 0 and glyph['closed']:
                 d += 'Z '
 
         return Path(d=d)
 
-    def rel_path(self, char, dx=0):
-        char = self.characters[char]
+    def rel_path(self, glyph, dx=0):
+        glyph = self.glyphs[glyph]
 
         paths = list()
 
-        for l, layer in enumerate(char['points']):
+        for l, layer in enumerate(glyph['points']):
             outer = list()
             inner = list()
             for i, phase in enumerate(layer):
@@ -61,17 +61,17 @@ class Px2Ph(Px2Pt):
                 else:
                     a, b, c = layer[i-1], layer[i], layer[0]
 
-                if i == 0 and not char['closed']:
+                if i == 0 and not glyph['closed']:
                     outer.append(b.parallel(c, -90, 0.5))
                     outer.insert(0, b.parallel(c, 90, 0.5))
-                elif i == len(layer) -1 and not char['closed']:
+                elif i == len(layer) -1 and not glyph['closed']:
                     outer.append(b.parallel(a, 90, 0.5))
                     inner.insert(0, b.parallel(a, -90, 0.5))
                 else:
                     outer.append(self.get_intersection(a, b, c, -90))
                     inner.insert(0, self.get_intersection(a, b, c, 90))
 
-            paths.append(Path(d=self.generate_string(outer, inner, char['closed']), fill='red', stroke='none',stroke_width='0.1px'))
+            paths.append(Path(d=self.generate_string(outer, inner, glyph['closed']), fill='red', stroke='none',stroke_width='0.1px'))
 
         self.generate_file(paths)
 
@@ -129,11 +129,11 @@ class Px2Ph(Px2Pt):
 
     def write(self, string, absolute=True):
         if absolute:
-            paths = [self.absolute_line(char, dx * self.x)
-                     for dx, char in enumerate(list(string))]
+            paths = [self.absolute_line(glyph, dx * self.x)
+                     for dx, glyph in enumerate(list(string))]
         else:
-            paths = [self.relative_line(char, dx * self.x)
-                     for dx, char in enumerate(list(string))]
+            paths = [self.relative_line(glyph, dx * self.x)
+                     for dx, glyph in enumerate(list(string))]
 
         self.generate_file(paths)
 
