@@ -1,56 +1,63 @@
-import cv2
 from os import listdir
 from os.path import isfile, join, splitext
 
-from .base_objects import Point
+import cv2
 
+from base_objects import Point
 
-class Px2Pt:
-    def __init__(self, filepath, glyphs, grid):
-        self.x, self.y = grid
+def px2pt(glyph_set, images_dir, grid, ext='.png', **kwargs):
+    """
+    Read several images and parse pixel position in absolute position
+    for each glyphs given as argument. points's lists are ordered
+    by grey intensity.
 
-        if filepath[-1] == '/':
-            self.filename = filepath.strip('/')
-            self.glyphs = self.from_img(filepath, glyphs)
+    Return a dict of glyphs with series of point and closed information
+    """
+    x, y = grid
 
-    def from_img(self, filepath, glyphs):
-        """
-        Read several images and parse pixel position in absolute position
-        for each glyphs given as argument. points's lists are ordered
-        by grey intensity.
-        """
-        layers = [f for f in listdir(filepath)
-                  if isfile(join(filepath, f))
-                  and splitext(filepath)[1] is '.png']
-        glyph_str = list(glyphs)
-        # generate a di0ct with all glyphs given
-        glyphs = {glypĥ: {'closed': False, 'points': []} for glypĥ in glyph_str}
+    if images_dir[-1] != '/':
+        # FIXME to remove
+        images_dir = '../' + images_dir + '/'
 
-        for layer in layers:
-            # Read & convert the image to greyscale
-            img = cv2.imread(filepath + layer)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # Extract every glyphs from the image
-            rects = [img[1:self.y + 1, a:a + self.x]
-                     for a in range(1, len(glyph_str)*(self.x + 1), self.x + 1)]
+    layers_path = [images_dir + f for f in listdir(images_dir)
+                   if isfile(join(images_dir, f))
+                   and splitext(f)[1] == ext]
 
-            for glyph, rect in zip(glyph_str, rects):
-                # get the pixel position (x,y) and intensity if it's not white
-                points = [[Point(x, y), rect[y, x]]
-                          for x in range(self.x)
-                          for y in range(self.y)
-                          if rect[y, x] < 255]
+    glyph_list = list(glyph_set)
 
-                if len(points) == 0:
-                    continue
-                # Sort the list by intensity
-                points = sorted(points, key=lambda info: info[1])
-                # If the light intensity of the first point is 0 (black)
-                # then the character's path has to be closed
-                if points[0][1] == 0:
-                    glyphs[glyph]['closed'] = True
-                # Remove the intensity information
-                points = [p[0] for p in points]
-                glyphs[glyph]['points'].append(points)
+    # generate a dict with all glyphs given
+    glyphs = {glyph: {'closed': False, 'layers': []} for glyph in glyph_list}
 
-        return glyphs
+    for layer in layers_path:
+        # Read & convert the image to greyscale
+        img = cv2.imread(layer)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Extract every glyphs from the image
+        rects = [img[1:y + 1, a:a + x]
+                 for a in range(1, len(glyph_list)*(x + 1), x + 1)]
+
+        for glyph, rect in zip(glyph_list, rects):
+            # get the pixel position (x,y) and intensity if it's not white
+            points = [[Point(pos_x, pos_y), rect[pos_y, pos_x]]
+                      for pos_x in range(x)
+                      for pos_y in range(y)
+                      if rect[pos_y, pos_x] < 255]
+
+            if len(points) == 0:
+                continue
+            # Sort the list by intensity
+            points = sorted(points, key=lambda info: info[1])
+            # If the light intensity of the first point is 0 (black)
+            # then the character's path has to be closed
+            if points[0][1] == 0:
+                glyphs[glyph]['closed'] = True
+            # Remove the intensity information
+            points = [p[0] for p in points]
+            glyphs[glyph]['layers'].append(points)
+
+    # if none of the layers gave pixel informations, set glyph to None
+    for glyph in glyphs:
+        if len(glyphs[glyph]['layers']) == 0:
+            glyphs[glyph] = None
+
+    return glyphs
