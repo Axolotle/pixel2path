@@ -102,7 +102,7 @@ class Stroke:
         self.layers = self.format(layers)
         self.relative = False
         if relative:
-            self.layers = self.relative_points()
+            self.layers = self.points_position(relative)
 
     def format(self, layers):
         glyph_pts = list()
@@ -114,26 +114,17 @@ class Stroke:
             glyph_pts.append(path_pts)
         return glyph_pts
 
-    def relative_points(self):
-        if self.relative:
+    def points_position(self, relative=False):
+        if self.relative is relative:
             pass
         glyph_pts = list()
         for path in self.layers:
             new_points = [path[0]]
-            new_points += [(path[i][0] -path[i-1][0], path[i][1])
-                           for i in range(1, len(path))]
-            glyph_pts.append(new_points)
-        self.relative = True
-        return glyph_pts
-
-    def absolute_points(self):
-        if not self.relative:
-            pass
-        glyph_pts = list()
-        for n, path in enumerate(self.layers):
-            new_points = [path[0]]
             for i in range(1, len(path)):
-                new_points.append((new_points[i-1][0] + path[i][0], path[i][1]))
+                if relative:
+                    new_points.append((path[i][0] - path[i-1][0], path[i][1]))
+                else:
+                    new_points.append((new_points[i-1][0] + path[i][0], path[i][1]))
             glyph_pts.append(new_points)
-        self.relative = False
+        self.relative = relative
         return glyph_pts
