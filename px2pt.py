@@ -26,7 +26,7 @@ def px2pt(glyph_set, images_dir, grid, ext='.png', **kwargs):
     glyph_list = list(glyph_set)
 
     # generate a dict with all glyphs given
-    glyphs = {glyph: {'closed': False, 'layers': []} for glyph in glyph_list}
+    glyphs = {glyph: [] for glyph in glyph_list}
 
     for layer in layers_path:
         # Read & convert the image to greyscale
@@ -37,11 +37,14 @@ def px2pt(glyph_set, images_dir, grid, ext='.png', **kwargs):
                  for a in range(1, len(glyph_list)*(x + 1), x + 1)]
 
         for glyph, rect in zip(glyph_list, rects):
+            glyph_layer = {'closed': False, 'points': []}
+
             # get the pixel position (x,y) and intensity if it's not white
             points = [[Point(pos_x, pos_y), rect[pos_y, pos_x]]
                       for pos_x in range(x)
                       for pos_y in range(y)
                       if rect[pos_y, pos_x] < 255]
+
 
             if len(points) == 0:
                 continue
@@ -50,14 +53,15 @@ def px2pt(glyph_set, images_dir, grid, ext='.png', **kwargs):
             # If the light intensity of the first point is 0 (black)
             # then the character's path has to be closed
             if points[0][1] == 0:
-                glyphs[glyph]['closed'] = True
+                glyph_layer['closed'] = True
             # Remove the intensity information
             points = [p[0] for p in points]
-            glyphs[glyph]['layers'].append(points)
+            glyph_layer['points'] = points
+            glyphs[glyph].append(glyph_layer)
 
     # if none of the layers gave pixel informations, set glyph to None
     for glyph in glyphs:
-        if len(glyphs[glyph]['layers']) == 0:
+        if len(glyphs[glyph]) == 0:
             glyphs[glyph] = None
 
     return glyphs

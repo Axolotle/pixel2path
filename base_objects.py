@@ -1,6 +1,5 @@
 import math
 
-
 class Point(tuple):
     def __new__(self, *args):
         value = args[0] if len(args) == 1 else args
@@ -97,3 +96,26 @@ class Line:
     def parallel(self, theta, distance):
         vector = distance * self.vector().unit_vector().rotate(theta)
         return Line(self.a + vector, self.b + vector)
+
+class Stroke:
+    def __init__(self, layers):
+        self.layers = self.format(layers)
+
+    def format(self, layers):
+        glyph_pts = list()
+        for path in layers:
+            path_pts = list()
+            if not path['closed']:
+                path_pts.append((path['points'].pop(0), 'move'))
+            path_pts += [(pt, 'line') for pt in path['points']]
+            glyph_pts.append(path_pts)
+        return glyph_pts
+
+    def relative_points(self):
+        glyph_pts = list()
+        for n, path in enumerate(self.layers):
+            new_points = [path[0]]
+            new_points += [(path[i-1][0] - path[i][0], path[i][1])
+                           for i in range(1, len(path))]
+            glyph_pts.append(new_points)
+        return glyph_pts
