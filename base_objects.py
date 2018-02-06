@@ -76,7 +76,7 @@ class Line:
         """
         return self.a.vector(self.b)
 
-    def intersection(self, other):
+    def intersection(self, other, join=False):
         a, b, c, d = self.a, self.b, other.a, other.b
         i, j = self.vector(), other.vector()
 
@@ -88,7 +88,7 @@ class Line:
             # return Point(a + k * i)
             m = (i.x * a.y - i.x * c.y - i.y * a.x + i.y * c.x) / div
             # check if lines intersect
-            if 0 < m < 1:
+            if 0 < m < 1 or join:
                 return Point(c + m * j)
             else:
                 return None
@@ -164,13 +164,13 @@ class Shape(Stroke):
 
             for i in range(starter, length - 1):
                 z, a, b = points[i-1], points[i], points[i+1]
-                outer += [self.get_intersection(z, a, b, -90)]
-                inner += [self.get_intersection(z, a, b, 90)]
+                outer += self.get_intersection(z, a, b, -90)
+                inner += self.get_intersection(z, a, b, 90)
 
             if closed:
                 z, a, b = points[length-2], points[length-1], points[0]
-                outer += [self.get_intersection(z, a, b, -90)]
-                inner += [self.get_intersection(z, a, b, 90)]
+                outer += self.get_intersection(z, a, b, -90)
+                inner += self.get_intersection(z, a, b, 90)
                 new_layer += [outer, list(reversed(inner))]
 
             else:
@@ -184,9 +184,9 @@ class Shape(Stroke):
 
         return new_layers
 
-    def get_intersection(self, a, b, c, theta):
+    def get_intersection(self, a, b, c, theta, join=False):
         d1, d2 = Line(a, b).parallel(theta, 0.5), Line(b, c).parallel(theta, 0.5)
         intersection = d1.intersection(d2)
         if intersection is None:
-            return Line(d1.b, d2.a)
-        return intersection
+            return [(d1.b, 'curve'), (d2.a, 'curve')]
+        return [(intersection, 'curve')]
