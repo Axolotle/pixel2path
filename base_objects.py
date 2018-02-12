@@ -158,8 +158,8 @@ class Shape(Stroke):
             if not closed:
                 a, b = points[0], points[1]
                 outer += [(a.parallel(b, -90, decal), 'line')]
-                inner += [(a.parallel(b, 180, decal), 'curve'),
-                          (a.parallel(b, 90, decal), 'curve')]
+                inner += [(a.parallel(b, 180, decal), 'line'),#'curve'),
+                          (a.parallel(b, 90, decal), 'line')]#'curve')]
                 starter = 1
 
             for i in range(starter, length - 1):
@@ -171,14 +171,14 @@ class Shape(Stroke):
                 z, a, b = points[length-2], points[length-1], points[0]
                 outer += self.get_intersection(z, a, b, -90)
                 inner += self.get_intersection(z, a, b, 90)
-                new_layer += [outer, list(reversed(inner))]
+                new_layer = [outer, list(reversed(inner))]
 
             else:
                 a, b = points[length-1], points[length-2]
                 inner += [(a.parallel(b, -90, decal), 'line'),
-                          (a.parallel(b, 180, decal), 'curve')]
-                outer += [(a.parallel(b, 90, decal), 'curve')]
-                new_layer.append(outer + list(reversed(inner)))
+                          (a.parallel(b, 180, decal), 'line')]#'curve')]
+                outer += [(a.parallel(b, 90, decal), 'line')]#'curve')]
+                new_layer = [outer + list(reversed(inner))]
 
             new_layers.append(new_layer)
 
@@ -188,5 +188,5 @@ class Shape(Stroke):
         d1, d2 = Line(a, b).parallel(theta, 0.5), Line(b, c).parallel(theta, 0.5)
         intersection = d1.intersection(d2)
         if intersection is None:
-            return [(d1.b, 'curve'), (d2.a, 'curve')]
-        return [(intersection, 'curve')]
+            return [(d1.b, 'line'), (d2.a, 'line')]
+        return [(intersection, 'line')]
