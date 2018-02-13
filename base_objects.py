@@ -1,50 +1,66 @@
 import math
+from defcon import Point as DefPoint
 
-class Point(tuple):
-    def __new__(self, *args):
-        value = args[0] if len(args) == 1 else args
-        return tuple.__new__(Point, value)
 
-    def __init__(self, *args):
-        value = args[0] if len(args) == 1 else args
-        self.x, self.y = value
+class Point(DefPoint):
+    """Subclassed Point object that give some tools for point
+    manipulation and vectorization.
+    """
+    def __init__(self, x, y, segmentType=None):
+        super().__init__((x,y), segmentType)
+
+    def __repr__(self):
+        return "<{} coord: ({}, {}) type: {}>".format(self.__class__.__name__, self.x, self.y, self.segmentType)
 
     def vector(self, other):
+        """Return the vector of two points"""
         return Vector(other.x - self.x, other.y - self.y)
 
+    def point(self, vector):
+        """Return a new point by adding a vector to the actual point"""
+        return Point(self.x + vector.x, self.y + vector.y)
+
     def distance(self, other):
+        """Return the length of the vector self->other"""
         return self.vector(other).norm()
 
     def parallel(self, other, theta, distance):
         vector = distance * self.vector(other).unit_vector().rotate(theta)
         return Point(self + vector)
 
-    def __add__(self, other):
-        return Point(self.x + other.x, self.y + other.y)
 
-    def __sub__(self, other):
-        return Point(self.x - other.x, self.y - other.y)
+class Vector():
+    __slots__ = ('_x', '_y')
 
-    def __radd__(self, n):
-        return Point(self.x + n, self.y + n)
+    def __init__(self, x, y):
+        self._x = x
+        self._y = y
 
-    def __rmult__(self, n):
-        return Point(self.x * n, self.y * n)
+    def __repr__(self):
+        return "<{} coord: ({}, {})>".format(self.__class__.__name__, self.x, self.y)
 
-class Vector(tuple):
-    def __new__(self, *args):
-        value = args[0] if len(args) == 1 else args
-        return tuple.__new__(Vector, value)
+    def _get_x(self):
+        return self._x
 
-    def __init__(self, *args):
-        value = args[0] if len(args) == 1 else args
-        self.x, self.y = value
+    def _set_x(self, value):
+        self._x = value
+
+    x = property(_get_x, _set_x, doc="The x direction.")
+
+    def _get_y(self):
+        return self._y
+
+    def _set_y(self, value):
+        self._y = value
+
+    y = property(_get_y, _set_y, doc="The y direction.")
 
     def norm(self):
         return math.hypot(self.x, self.y)
 
     def unit_vector(self):
-        return Vector(self.x / self.norm(), self.y / self.norm())
+        norm = self.norm()
+        return Vector(self.x / norm, self.y / norm)
 
     def rotate(self, theta):
         """ Rotate vector of angle theta given in deg
@@ -54,17 +70,9 @@ class Vector(tuple):
         return Vector(cos * self.x - sin * self.y,
                       sin * self.x + cos * self.y)
 
-    def point(self, point, div=1):
-        return Point(point.x + self.x, point.x + self.y)
+    def scalar(self, number):
+        return Vector(self.x * number, self.y * number)
 
-    def __rmul__(self, n):
-        return Vector(self.x * n, self.y * n)
-
-    def __mul__(self, other):
-        return Vector(self.x * other.x + self.y * other.y)
-
-    def __add__(self, other):
-        return Vector(self.x + other.x, self.y + other.y)
 
 class Line:
     def __init__(self, a, b):
@@ -94,7 +102,7 @@ class Line:
                 return None
 
     def parallel(self, theta, distance):
-        vector = distance * self.vector().unit_vector().rotate(theta)
+        vector = self.vector().unit_vector().rotate(theta) * distance
         return Line(self.a + vector, self.b + vector)
 
 class Stroke:
@@ -102,7 +110,7 @@ class Stroke:
         self.layers = self.format(layers)
         self.relative = False
         if relative:
-            self.layers = self.points_position(relative)
+            self.layers = self.change_position_value(relative)
 
     def format(self, layers):
         """ Format points position to a list of tuples composed of the point's
@@ -118,7 +126,7 @@ class Stroke:
             glyph_pts.append(path_pts)
         return glyph_pts
 
-    def points_position(self, relative=False):
+    def change_position_value(self, relative=False):
         """ Change points to relative or absolute position
         """
         if self.relative is relative:
