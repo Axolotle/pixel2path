@@ -1,5 +1,5 @@
 import math
-from defcon import Point as DefPoint
+from defcon import Point as DefPoint, Contour as DefContour
 
 
 class Point(DefPoint):
@@ -15,6 +15,10 @@ class Point(DefPoint):
     def vector(self, other):
         """Return the vector of two points"""
         return Vector(other.x - self.x, other.y - self.y)
+
+    def relative(self, other):
+        """Return the vector of two points as a new point with segmentType"""
+        return Point(other.x - self.x, other.y - self.y, self.segmentType)
 
     def point(self, vector):
         """Return a new point by adding a vector to the actual point"""
@@ -74,7 +78,7 @@ class Vector():
         return Vector(self.x * number, self.y * number)
 
 
-class Line:
+class Segment:
     def __init__(self, a, b):
         self.a = a
         self.b = b if isinstance(b, Point) else b.point(a)
@@ -84,7 +88,9 @@ class Line:
         """
         return self.a.vector(self.b)
 
-    def intersection(self, other, join=False):
+    def intersection(self, other):
+        """ Return the intersection point of two lines
+        """
         a, b, c, d = self.a, self.b, other.a, other.b
         i, j = self.vector(), other.vector()
 
@@ -96,51 +102,41 @@ class Line:
             # return Point(a + k * i)
             m = (i.x * a.y - i.x * c.y - i.y * a.x + i.y * c.x) / div
             # check if lines intersect
-            if 0 < m < 1 or join:
+            if 0 < m < 1:
                 return Point(c + m * j)
             else:
                 return None
 
     def parallel(self, theta, distance):
         vector = self.vector().unit_vector().rotate(theta) * distance
-        return Line(self.a + vector, self.b + vector)
+        return Segment(self.a + vector, self.b + vector)
 
-class Stroke:
-    def __init__(self, layers, relative=False):
-        self.layers = self.format(layers)
-        self.relative = False
-        if relative:
-            self.layers = self.change_position_value(relative)
 
-    def format(self, layers):
-        """ Format points position to a list of tuples composed of the point's
-        coordinates and the segment's type. If the stroke is not closed,
-        the first point is a 'move' segment.
+class Contour(DefContour):
+    def __init__(self, points):
+        super().__init__()
+        for point in points:
+            self.appendPoint(point)
+
+
+class Stroke():
+    def __init__(self, contours, relative=False):
+        self
+        self.relative = relative
+
+    def to_relative(self):
+        """ Return a new Stroke object with points in relative position
         """
-        glyph_pts = list()
-        for path in layers:
-            path_pts = list()
-            if not path['closed']:
-                path_pts.append((path['points'].pop(0), 'move'))
-            path_pts += [(pt, 'line') for pt in path['points']]
-            glyph_pts.append(path_pts)
-        return glyph_pts
-
-    def change_position_value(self, relative=False):
-        """ Change points to relative or absolute position
-        """
-        if self.relative is relative:
+        if self.relative:
             pass
-        glyph_pts = list()
-        for pts in self.layers:
-            new_pts = [pts[0]]
-            for i in range(1, len(path)):
-                # rebuild the tuple by changing points position
-                if relative:
-                    new_pts.append((pts[i][0] - pts[i-1][0], pts[i][1]))
-                else:
-                    new_pts.append((new_pts[i-1][0] + pts[i][0], pts[i][1]))
-            glyph_pts.append(new_pts)
+        new_contours = list()
+        for contour in self.contours:
+
+            print('aaa',contour)
+            for i in range(1, len(contour)):
+                contour[i-1].relative(contour[i])
+            print('ccc', contour)
+            contours.append(contour)
         self.relative = relative
         return glyph_pts
 
