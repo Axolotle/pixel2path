@@ -1,5 +1,5 @@
 import math
-from defcon import Point as DefPoint, Contour as DefContour
+from defcon import Point as DefPoint, Contour as DefContour, Glyph as DefGlyph
 
 
 class Point(DefPoint):
@@ -119,9 +119,11 @@ class Contour(DefContour):
             self.appendPoint(point)
 
 
-class Stroke():
+class Stroke(DefGlyph):
     def __init__(self, contours, relative=False):
-        self
+        super().__init__()
+        for contour in contours:
+            self.appendContour(contour)
         self.relative = relative
 
     def to_relative(self):
@@ -130,21 +132,20 @@ class Stroke():
         if self.relative:
             pass
         new_contours = list()
-        for contour in self.contours:
+        for contour in self._contours:
+            points = [contour[i-1].relative(contour[i])
+                      if i != 0 else contour[i]
+                      for i in range(len(contour))]
+            new_contour = Contour(points)
+            new_contours.append(new_contour)
 
-            print('aaa',contour)
-            for i in range(1, len(contour)):
-                contour[i-1].relative(contour[i])
-            print('ccc', contour)
-            contours.append(contour)
-        self.relative = relative
-        return glyph_pts
+        return Stroke(new_contours, relative=True)
 
     # TODO: apply oblique style to points
 
 class Shape(Stroke):
-    def __init__(self, layers, width, linejoin='round', linecap='round', angle=None):
-        super().__init__(layers, relative=False)
+    def __init__(self, contours, width, linejoin='round', linecap='round', angle=None):
+        super().__init__(contours)
         decal = width / 20
         self.layers = self.vectorize(decal, linejoin, linecap)
 
