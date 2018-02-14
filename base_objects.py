@@ -1,16 +1,23 @@
 import math
+
 from defcon import Point as DefPoint, Contour as DefContour, Glyph as DefGlyph
 
 
 class Point(DefPoint):
     """Subclassed Point object that give some tools for point
     manipulation and vectorization.
+
+    Every methods returns a new instance of either Point or Vector object
+
+    TODO(maybe): implements __add__, __sub__
+    instead/in addition of displace(), vector()
     """
     def __init__(self, x, y, segmentType=None):
         super().__init__((x,y), segmentType)
 
     def __repr__(self):
-        return "<{} coord: ({}, {}) type: {}>".format(self.__class__.__name__, self.x, self.y, self.segmentType)
+        return "<{} coord: ({}, {}) type: {}>".format(
+            self.__class__.__name__, self.x, self.y, self.segmentType)
 
     def vector(self, other):
         """Return the vector of two points"""
@@ -20,17 +27,22 @@ class Point(DefPoint):
         """Return the vector of two points as a new point with segmentType"""
         return Point(other.x - self.x, other.y - self.y, self.segmentType)
 
-    def point(self, vector):
-        """Return a new point by adding a vector to the actual point"""
-        return Point(self.x + vector.x, self.y + vector.y)
-
     def distance(self, other):
         """Return the length of the vector self->other"""
         return self.vector(other).norm()
 
-    def parallel(self, other, theta, distance):
-        vector = distance * self.vector(other).unit_vector().rotate(theta)
-        return Point(self + vector)
+    def scale(self, n):
+        return Point(self.x * n, self.y * n)
+
+    def displace(self, vector, segmentType='line'):
+        """Return a new point with coordinates = point + vector
+        It differs from the Defcon Point's move method by returning a new
+        point instead of updating the instance point position.
+        """
+        return Point(self.x + vector.x, self.y + vector.y, segmentType)
+
+    def toSvgCommand(self):
+        NotImplemented
 
 
 class Vector():
@@ -41,7 +53,8 @@ class Vector():
         self._y = y
 
     def __repr__(self):
-        return "<{} coord: ({}, {})>".format(self.__class__.__name__, self.x, self.y)
+        return "<{} coord: ({}, {})>".format(
+            self.__class__.__name__, self.x, self.y)
 
     def _get_x(self):
         return self._x
@@ -74,21 +87,28 @@ class Vector():
         return Vector(cos * self.x - sin * self.y,
                       sin * self.x + cos * self.y)
 
-    def scalar(self, number):
+    def scale(self, number):
         return Vector(self.x * number, self.y * number)
 
 
 class Segment:
+    """Helper object that give tools for intersections dectection to produce
+    stroke vectorization
+    """
     def __init__(self, a, b):
         self.a = a
-        self.b = b if isinstance(b, Point) else b.point(a)
+        self.b = b if isinstance(b, Point) else b.displace(a)
+
+    def __repr__(self):
+        return "<{} points: ({},{}), ({},{})>".format(
+            self.__class__.__name__, self.a.x, self.a.y, self.b.x, self.b.y)
 
     def vector(self):
         """ Return the vector of the line
         """
         return self.a.vector(self.b)
 
-    def intersection(self, other):
+    def intersection(self, other, force=False):
         """ Return the intersection point of two lines
         """
         a, b, c, d = self.a, self.b, other.a, other.b
@@ -102,14 +122,21 @@ class Segment:
             # return Point(a + k * i)
             m = (i.x * a.y - i.x * c.y - i.y * a.x + i.y * c.x) / div
             # check if lines intersect
-            if 0 < m < 1:
-                return Point(c + m * j)
+            if 0 < m < 1 or force:
+                return [c.displace(j.scale(m))]
             else:
-                return None
+                return [b, c]
 
-    def parallel(self, theta, distance):
-        vector = self.vector().unit_vector().rotate(theta) * distance
-        return Segment(self.a + vector, self.b + vector)
+    def getParallel(self, theta, distance):
+        vector = self.vector().unit_vector().rotate(theta).scale(distance)
+        return Segment(self.a.displace(vector), self.b.displace(vector))
+
+    def isClockwise(self):
+        vector = self.vector()
+        if vector.x < 0 or vector.y < 0:
+            return True
+        else:
+            return False
 
 
 class Contour(DefContour):
@@ -118,6 +145,28 @@ class Contour(DefContour):
         for point in points:
             self.appendPoint(point)
 
+    def getCornerProjection(self, i, distance, orientation, linejoin):
+        last = 0 if i == len(self._points) - 1 else i + 1
+        p1, p2, p3 = self._points[i-1], self._points[i], self._points[last]
+        s1 = Segment(p1, p2).getParallel(-90 * orientation, distance)
+        s2 = Segment(p2, p3).getParallel(-90 * orientation, distance)
+        if linejoin == 'bevel':
+            intersection = s1.intersection(s2)
+        elif linejoin == 'miter':
+            intersection = s1.intersection(s2, force=True)
+        elif linejoin == 'round':
+            NotImplemented
+        return intersection
+
+    def getEdgeProjection(self, i, j, distance, orientation, linecap):
+        p1, p2 = self._points[i], self._points[j]
+        uv = p1.vector(p2).unit_vector()
+        if linecap == 'spike':
+            return [p1.displace(uv.rotate(90 * orientation).scale(distance), 'line'),
+                    p1.displace(uv.rotate(180).scale(distance), 'line'),
+                    p1.displace(uv.rotate(-90 * orientation).scale(distance), 'line')]
+        else:
+            NotImplemented
 
 class Stroke(DefGlyph):
     def __init__(self, contours, relative=False):
@@ -130,7 +179,7 @@ class Stroke(DefGlyph):
         """ Return a new Stroke object with points in relative position
         """
         if self.relative:
-            pass
+            raise Exception('The stroke is already in relative position')
         new_contours = list()
         for contour in self._contours:
             points = [contour[i-1].relative(contour[i])
@@ -139,59 +188,45 @@ class Stroke(DefGlyph):
             new_contour = Contour(points)
             new_contours.append(new_contour)
 
-        return Stroke(new_contours, relative=True)
+        return type(self)(new_contours, relative=True)
 
     # TODO: apply oblique style to points
 
 class Shape(Stroke):
-    def __init__(self, contours, width, linejoin='round', linecap='round', angle=None):
+    def __init__(self, contours, width, linejoin='round', linecap='spike', angle=None):
+        distance = width / 20
+        contours = self.vectorize(contours, distance, linejoin, linecap)
         super().__init__(contours)
-        decal = width / 20
-        self.layers = self.vectorize(decal, linejoin, linecap)
 
-    def vectorize(self, decal, linejoin, linecap):
-        new_layers = list()
-        for layer in self.layers:
-            # TODO check direction of stroke to define theta_in and theta_out
-            closed = layer[0][1] != 'move'
-            length = len(layer)
-            starter = 0
+    @staticmethod
+    def vectorize(contours, distance, linejoin, linecap):
+        new_contours = list()
+        for points in contours:
+            # direction = Segment(points[0], points[1]).isClockwise()
+            orientation = 1
+            length = len(points)
             outer, inner = list(), list()
             new_layer = list()
-            points = [path[0] for path in layer]
 
-            if not closed:
-                a, b = points[0], points[1]
-                outer += [(a.parallel(b, -90, decal), 'line')]
-                inner += [(a.parallel(b, 180, decal), 'line'),#'curve'),
-                          (a.parallel(b, 90, decal), 'line')]#'curve')]
-                starter = 1
+            start = 1 if points.open else 0
+            end = length - 1 if points.open else length
 
-            for i in range(starter, length - 1):
-                z, a, b = points[i-1], points[i], points[i+1]
-                outer += self.get_intersection(z, a, b, -90)
-                inner += self.get_intersection(z, a, b, 90)
+            if points.open:
+                outer += points.getEdgeProjection(0, 1, distance, orientation, linecap)
 
-            if closed:
-                z, a, b = points[length-2], points[length-1], points[0]
-                outer += self.get_intersection(z, a, b, -90)
-                inner += self.get_intersection(z, a, b, 90)
-                new_layer = [outer, list(reversed(inner))]
+            for i in range(start, end):
+                outer += points.getCornerProjection(i, distance, orientation, linejoin)
+                inner += points.getCornerProjection(i, distance, -orientation, linejoin)
+
+            inner.reverse()
+
+            if points.open:
+                outer += points.getEdgeProjection(length - 1,length - 2, distance, orientation, linecap)
+                if len(inner) > 0:
+                    outer.extend(inner)
+                new_contours.append(Contour(outer))
 
             else:
-                a, b = points[length-1], points[length-2]
-                inner += [(a.parallel(b, -90, decal), 'line'),
-                          (a.parallel(b, 180, decal), 'line')]#'curve')]
-                outer += [(a.parallel(b, 90, decal), 'line')]#'curve')]
-                new_layer = [outer + list(reversed(inner))]
+                new_contours += [Contour(outer), Contour(inner)]
 
-            new_layers.append(new_layer)
-
-        return new_layers
-
-    def get_intersection(self, a, b, c, theta, join=False):
-        d1, d2 = Line(a, b).parallel(theta, 0.5), Line(b, c).parallel(theta, 0.5)
-        intersection = d1.intersection(d2)
-        if intersection is None:
-            return [(d1.b, 'line'), (d2.a, 'line')]
-        return [(intersection, 'line')]
+        return new_contours
