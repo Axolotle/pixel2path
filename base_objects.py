@@ -90,6 +90,9 @@ class Vector():
     def scale(self, number):
         return Vector(self.x * number, self.y * number)
 
+    def combine(self, other):
+        return Vector(self.x + other.x, self.y + other.y)
+
 
 class Segment:
     """Helper object that give tools for intersections dectection to produce
@@ -145,11 +148,11 @@ class Contour(DefContour):
         for point in points:
             self.appendPoint(point)
 
-    def getCornerProjection(self, i, distance, orientation, linejoin):
+    def getCornerProjection(self, i, distance, theta, linejoin):
         last = 0 if i == len(self._points) - 1 else i + 1
         p1, p2, p3 = self._points[i-1], self._points[i], self._points[last]
-        s1 = Segment(p1, p2).getParallel(-90 * orientation, distance)
-        s2 = Segment(p2, p3).getParallel(-90 * orientation, distance)
+        s1 = Segment(p1, p2).getParallel(theta, distance)
+        s2 = Segment(p2, p3).getParallel(theta, distance)
         if linejoin == 'bevel':
             intersection = s1.intersection(s2)
         elif linejoin == 'miter':
@@ -158,13 +161,17 @@ class Contour(DefContour):
             NotImplemented
         return intersection
 
-    def getEdgeProjection(self, i, j, distance, orientation, linecap):
+    def getEdgeProjection(self, i, j, distance, linecap):
         p1, p2 = self._points[i], self._points[j]
         uv = p1.vector(p2).unit_vector()
+        vs = [uv.rotate(-90).scale(distance),
+              uv.rotate(180).scale(distance),
+              uv.rotate(90).scale(distance)]
         if linecap == 'spike':
-            return [p1.displace(uv.rotate(90 * orientation).scale(distance), 'line'),
-                    p1.displace(uv.rotate(180).scale(distance), 'line'),
-                    p1.displace(uv.rotate(-90 * orientation).scale(distance), 'line')]
+            return [p1.displace(v, 'line') for v in vs]
+        elif linecap == 'square':
+            return [p1.displace(vs[1].combine(vs[0])),
+                    p1.displace(vs[1].combine(vs[2]))]
         else:
             NotImplemented
 
@@ -202,26 +209,24 @@ class Shape(Stroke):
     def vectorize(contours, distance, linejoin, linecap):
         new_contours = list()
         for points in contours:
-            # direction = Segment(points[0], points[1]).isClockwise()
-            orientation = 1
-            length = len(points)
+            l = len(points)
             outer, inner = list(), list()
             new_layer = list()
 
             start = 1 if points.open else 0
-            end = length - 1 if points.open else length
+            end = l - 1 if points.open else l
 
             if points.open:
-                outer += points.getEdgeProjection(0, 1, distance, orientation, linecap)
+                outer += points.getEdgeProjection(0, 1, distance, linecap)
 
             for i in range(start, end):
-                outer += points.getCornerProjection(i, distance, orientation, linejoin)
-                inner += points.getCornerProjection(i, distance, -orientation, linejoin)
+                outer += points.getCornerProjection(i, distance, 90, linejoin)
+                inner += points.getCornerProjection(i, distance, -90, linejoin)
 
             inner.reverse()
 
             if points.open:
-                outer += points.getEdgeProjection(length - 1,length - 2, distance, orientation, linecap)
+                outer += points.getEdgeProjection(l - 1, l - 2, distance, linecap)
                 if len(inner) > 0:
                     outer.extend(inner)
                 new_contours.append(Contour(outer))
