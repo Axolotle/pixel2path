@@ -3,14 +3,12 @@ from svgwrite.container import Group
 from svgwrite.path import Path
 
 def gen_svg(shape):
-    paths = [gen_str(contours) for contours in shape.layers]
+    paths = [gen_str(contour) for contour in shape]
     gen_file(paths)
 
-def gen_str(contours):
-    d = list()
-    for contour in contours:
-        d += ['M {},{}'.format(*contour[0][0])]
-        d += ['L {},{}'.format(*pos[0]) for pos in contour]
+def gen_str(contour):
+    d = ['M {},{}'.format(contour[0].x, contour[0].y)]
+    d += ['L {},{}'.format(point.x, point.y) for point in contour[1:]]
     return Path(d=''.join(d))
 
 def gen_file(paths):
