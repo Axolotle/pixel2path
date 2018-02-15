@@ -3,15 +3,19 @@ import argparse
 from yaml import load
 
 from px2pt import px2pt
-from base_objects import Stroke, Shape
 from svg import gen_svg
-import ufo
+from ufo import gen_ufo
+
+# For testing
+from base_objects import Stroke, Point, Vector
 
 
 def args():
     parser = argparse.ArgumentParser(prog='px2ph',
                                      description='Pixel to vector converter')
     parser.add_argument('yamlpath', help='path to the yaml config file')
+    parser.add_argument('--svg', action='store_true')
+    parser.add_argument('--ufo', action='store_true')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -21,20 +25,11 @@ if __name__ == "__main__":
         config = load(yaml.read())
 
     stroke_style = config['font-family'][0]['stroke']
-
     glyphs = px2pt(config['glyph_set'], **config['px_infos'])
-    # strokes = {glyph: Stroke(glyphs[glyph]) for glyph in glyphs}
-    # print(strokes['A'].layers)
-    # shapes = {glyph: Shape(glyphs[glyph], **stroke_style)
-    #           for glyph in glyphs}
-    # shape = Shape(glyphs['F'], **stroke_style)
-    # gen_svg(shape)
-    ufo.gen_font(glyphs, stroke_style)
 
-    # glyphs['B'].layers = glyphs['B'].points_position(True)
-    # print(glyphs['B'].layers)
-    # glyphs['B'].layers = glyphs['B'].points_position(False)
-    # print(glyphs['B'].layers)
+    if args.svg:
+        shape = Stroke(glyphs['A']).scale(5).vectorize(**stroke_style)
+        gen_svg(shape)
 
-    #
-    # print(glyphs)
+    if args.ufo:
+        gen_ufo(glyphs, stroke_style)
