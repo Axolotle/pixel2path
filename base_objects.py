@@ -31,8 +31,8 @@ class Point(DefPoint):
         """Return the length of the vector self->other"""
         return self.vector(other).norm()
 
-    def scale(self, n):
-        return Point(self.x * n, self.y * n)
+    def scale(self, value):
+        return Point(self.x * value, self.y * value, self.segmentType)
 
     def displace(self, vector, segmentType='line'):
         """Return a new point with coordinates = point + vector
@@ -87,11 +87,11 @@ class Vector():
         return Vector(cos * self.x - sin * self.y,
                       sin * self.x + cos * self.y)
 
-    def scale(self, number):
-        return Vector(self.x * number, self.y * number)
-
     def combine(self, other):
         return Vector(self.x + other.x, self.y + other.y)
+
+    def scale(self, value):
+        return Vector(self.x * value, self.y * value)
 
 
 class Segment:
@@ -118,7 +118,6 @@ class Segment:
         i, j = self.vector(), other.vector()
 
         div = i.x * j.y - i.y * j.x
-
         # check if i & j are not parallel
         if div != 0:
             # k = (j.x * a.y - j.x * c.y - j.y * a.x + j.y * c.x) / div
@@ -129,17 +128,12 @@ class Segment:
                 return [c.displace(j.scale(m))]
             else:
                 return [b, c]
-
-    def getParallel(self, theta, distance):
-        vector = self.vector().unit_vector().rotate(theta).scale(distance)
-        return Segment(self.a.displace(vector), self.b.displace(vector))
-
-    def isClockwise(self):
-        vector = self.vector()
-        if vector.x < 0 or vector.y < 0:
-            return True
         else:
-            return False
+            return None
+
+    def getParallel(self, theta, value):
+        vector = self.vector().unit_vector().rotate(theta).scale(value)
+        return Segment(self.a.displace(vector), self.b.displace(vector))
 
 
 class Contour(DefContour):
@@ -148,11 +142,33 @@ class Contour(DefContour):
         for point in points:
             self.appendPoint(point)
 
-    def getCornerProjection(self, i, distance, theta, linejoin):
+    def scale(self, value):
+        return Contour([point.scale(value) for point in self._points])
+
+    def vectorize(self, delta, linejoin, linecap):
+        l = len(self._points)
+        outer, inner = list(), list()
+        start = 1 if self.open else 0
+        end = l - 1 if self.open else l
+
+        if self.open:
+            outer += self.getEdgeProjection(0, 1, delta, linecap)
+        for i in range(start, end):
+            outer += self.getCornerProjection(i, delta, 90, linejoin)
+            inner += self.getCornerProjection(i, delta, -90, linejoin)
+        if self.open:
+            outer += self.getEdgeProjection(l-1, l-2, delta, linecap)
+            if len(inner) > 0:
+                outer.extend(list(reversed(inner)))
+            return [Contour(outer)]
+        else:
+            return [Contour(outer), Contour(list(reversed(inner)))]
+
+    def getCornerProjection(self, i, delta, theta, linejoin):
         last = 0 if i == len(self._points) - 1 else i + 1
         p1, p2, p3 = self._points[i-1], self._points[i], self._points[last]
-        s1 = Segment(p1, p2).getParallel(theta, distance)
-        s2 = Segment(p2, p3).getParallel(theta, distance)
+        s1 = Segment(p1, p2).getParallel(theta, delta)
+        s2 = Segment(p2, p3).getParallel(theta, delta)
         if linejoin == 'bevel':
             intersection = s1.intersection(s2)
         elif linejoin == 'miter':
@@ -161,26 +177,34 @@ class Contour(DefContour):
             NotImplemented
         return intersection
 
-    def getEdgeProjection(self, i, j, distance, linecap):
+    def getEdgeProjection(self, i, j, delta, linecap):
         p1, p2 = self._points[i], self._points[j]
         uv = p1.vector(p2).unit_vector()
-        vs = [uv.rotate(-90).scale(distance),
-              uv.rotate(180).scale(distance),
-              uv.rotate(90).scale(distance)]
+        vs = [uv.rotate(-90).scale(delta),
+              uv.rotate(180).scale(delta),
+              uv.rotate(90).scale(delta)]
         if linecap == 'spike':
             return [p1.displace(v, 'line') for v in vs]
         elif linecap == 'square':
             return [p1.displace(vs[1].combine(vs[0])),
                     p1.displace(vs[1].combine(vs[2]))]
-        else:
+        elif linecap == 'butt':
+            return [p1.displace(vs[0]), p1.displace(vs[2])]
+        elif linecap == 'round':
             NotImplemented
+        else:
+            raise ValueError('Unknown linecap value : \'{}\''.format(linecap))
+
+    #TODO add relative
+    #TODO add oblique
+
 
 class Stroke(DefGlyph):
-    def __init__(self, contours, relative=False):
+    def __init__(self, contours):
         super().__init__()
         for contour in contours:
             self.appendContour(contour)
-        self.relative = relative
+        self.relative = False
 
     def to_relative(self):
         """ Return a new Stroke object with points in relative position
@@ -197,41 +221,13 @@ class Stroke(DefGlyph):
 
         return type(self)(new_contours, relative=True)
 
-    # TODO: apply oblique style to points
+    def scale(self, value):
+        scaled = [contour.scale(value) for contour in self._contours]
+        return Stroke(scaled)
 
-class Shape(Stroke):
-    def __init__(self, contours, width, linejoin='round', linecap='spike', angle=None):
-        distance = width / 20
-        contours = self.vectorize(contours, distance, linejoin, linecap)
-        super().__init__(contours)
-
-    @staticmethod
-    def vectorize(contours, distance, linejoin, linecap):
-        new_contours = list()
-        for points in contours:
-            l = len(points)
-            outer, inner = list(), list()
-            new_layer = list()
-
-            start = 1 if points.open else 0
-            end = l - 1 if points.open else l
-
-            if points.open:
-                outer += points.getEdgeProjection(0, 1, distance, linecap)
-
-            for i in range(start, end):
-                outer += points.getCornerProjection(i, distance, 90, linejoin)
-                inner += points.getCornerProjection(i, distance, -90, linejoin)
-
-            inner.reverse()
-
-            if points.open:
-                outer += points.getEdgeProjection(l - 1, l - 2, distance, linecap)
-                if len(inner) > 0:
-                    outer.extend(inner)
-                new_contours.append(Contour(outer))
-
-            else:
-                new_contours += [Contour(outer), Contour(inner)]
-
-        return new_contours
+    def vectorize(self, width, linejoin='miter', linecap='square'):
+        vectorized = []
+        for contour in self._contours:
+            vectorized += contour.vectorize(width/2, linejoin, linecap)
+        # TODO add boolean union operation
+        return Stroke(vectorized)
