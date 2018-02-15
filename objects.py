@@ -75,7 +75,7 @@ class Vector():
     def norm(self):
         return math.hypot(self.x, self.y)
 
-    def unit_vector(self):
+    def unitVector(self):
         norm = self.norm()
         return Vector(self.x / norm, self.y / norm)
 
@@ -132,7 +132,7 @@ class Segment:
             return None
 
     def getParallel(self, theta, value):
-        vector = self.vector().unit_vector().rotate(theta).scale(value)
+        vector = self.vector().unitVector().rotate(theta).scale(value)
         return Segment(self.a.displace(vector), self.b.displace(vector))
 
 
@@ -151,9 +151,9 @@ class Contour(DefContour):
         if self.isRelative:
             raise Exception('This contour is already in relative position')
         points = self._points
-        new_points = [points[i-1].relative(points[i]) if i != 0 else points[i]
+        newPoints = [points[i-1].relative(points[i]) if i != 0 else points[i]
                       for i in range(len(points))]
-        return Contour(new_points, relative=True)
+        return Contour(newPoints, relative=True)
 
     def vectorize(self, delta, linejoin, linecap):
         l = len(self._points)
@@ -189,7 +189,7 @@ class Contour(DefContour):
 
     def getEdgeProjection(self, i, j, delta, linecap):
         p1, p2 = self._points[i], self._points[j]
-        uv = p1.vector(p2).unit_vector()
+        uv = p1.vector(p2).unitVector()
         vs = [uv.rotate(-90).scale(delta),
               uv.rotate(180).scale(delta),
               uv.rotate(90).scale(delta)]
@@ -220,8 +220,8 @@ class Stroke(DefGlyph):
         """
         if self.isRelative:
             raise Exception('This stroke is already in relative position')
-        new_contours = [contour.relative() for contour in self._contours]
-        return Stroke(new_contours, relative=True)
+        newContours = [contour.relative() for contour in self._contours]
+        return Stroke(newContours, relative=True)
 
     def scale(self, value):
         scaled = [contour.scale(value) for contour in self._contours]

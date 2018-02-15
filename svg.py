@@ -2,18 +2,19 @@ from svgwrite import Drawing
 from svgwrite.container import Group
 from svgwrite.path import Path
 
-def gen_svg(shape):
-    paths = gen_str(shape)
-    gen_file(paths)
 
-def gen_str(contours):
-    d = list()
+def genSVG(shape):
+    paths = genStr(shape)
+    genFile(paths)
+
+def genStr(contours):
+    d = []
     for contour in contours:
         d += ['M {},{}'.format(contour[0].x, contour[0].y)]
         d += ['L {},{}'.format(point.x, point.y) for point in contour[1:]]
     return Path(d=''.join(d))
 
-def gen_file(paths):
+def genFile(paths):
     size = ('{}px'.format(1000),
             '{}px'.format(1000))
     viewBox = '0 0 {} {}'.format(100, 100)

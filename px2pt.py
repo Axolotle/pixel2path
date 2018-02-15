@@ -3,9 +3,9 @@ from os.path import isfile, join, splitext
 
 import cv2
 
-from base_objects import Point, Contour
+from objects import Point, Contour
 
-def px2pt(glyph_set, images_dir, grid, ext='.png', **kwargs):
+def px2pt(glyphSet, imagesDir, grid, ext='.png', **kwargs):
     """
     Read several images and parse pixel position in absolute position
     for each glyphs given as argument. points's lists are ordered
@@ -15,32 +15,32 @@ def px2pt(glyph_set, images_dir, grid, ext='.png', **kwargs):
     """
     x, y = grid
 
-    if images_dir[-1] != '/':
+    if imagesDir[-1] != '/':
         # FIXME to remove
-        images_dir = '../' + images_dir + '/'
+        imagesDir = '../' + imagesDir + '/'
 
-    layers_path = [images_dir + f for f in listdir(images_dir)
-                   if isfile(join(images_dir, f))
+    layersPath = [imagesDir + f for f in listdir(imagesDir)
+                   if isfile(join(imagesDir, f))
                    and splitext(f)[1] == ext]
-    glyph_list = list(glyph_set)
+    glyphList = list(glyphSet)
     # generate a dict with all glyphs given
-    glyphs = {glyph: [] for glyph in glyph_list}
+    glyphs = {glyph: [] for glyph in glyphList}
 
-    for layer in layers_path:
+    for layer in layersPath:
         # Read & convert the image to greyscale
         img = cv2.imread(layer)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # Extract every glyphs from the image
-        pixel_glyphs = [img[1:y + 1, a:a + x]
-                        for a in range(1, len(glyph_list)*(x + 1), x + 1)]
+        pixelGlyphs = [img[1:y + 1, a:a + x]
+                        for a in range(1, len(glyphList)*(x + 1), x + 1)]
 
-        for glyph, pixel_glyph in zip(glyph_list, pixel_glyphs):
+        for glyph, pixelGlyph in zip(glyphList, pixelGlyphs):
             # get the pixel position (x,y) and intensity if it's not white
-            pixels = [{'position': Point(pos_x, pos_y, 'line'),
-                       'intensity': pixel_glyph[pos_y, pos_x]}
-                      for pos_x in range(x)
-                      for pos_y in range(y)
-                      if pixel_glyph[pos_y, pos_x] < 255]
+            pixels = [{'position': Point(posx, posy, 'line'),
+                       'intensity': pixelGlyph[posy, posx]}
+                      for posx in range(x)
+                      for posy in range(y)
+                      if pixelGlyph[posy, posx] < 255]
             if len(pixels) == 0:
                 continue
             # Sort the list by intensity

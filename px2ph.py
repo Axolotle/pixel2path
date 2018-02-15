@@ -3,11 +3,11 @@ import argparse
 from yaml import load
 
 from px2pt import px2pt
-from svg import gen_svg
-from ufo import gen_ufo
+from svg import genSVG
+from ufo import genUFO
 
 # For testing
-from base_objects import Stroke, Point, Vector
+from objects import Stroke, Point, Vector
 
 
 def args():
@@ -24,12 +24,12 @@ if __name__ == "__main__":
     with open(args.yamlpath, 'r') as yaml:
         config = load(yaml.read())
 
-    stroke_style = config['font-family'][0]['stroke']
-    glyphs = px2pt(config['glyph_set'], **config['px_infos'])
+    strokeStyle = config['fontFamily'][0]['stroke']
+    glyphs = px2pt(config['glyphSet'], **config['pxInfos'])
 
     if args.svg:
-        shape = Stroke(glyphs['A']).scale(5).vectorize(**stroke_style)
-        gen_svg(shape)
+        shape = Stroke(glyphs['A']).scale(5).vectorize(**strokeStyle)
+        genSVG(shape)
 
     if args.ufo:
-        gen_ufo(glyphs, stroke_style)
+        genUFO(glyphs, strokeStyle)
