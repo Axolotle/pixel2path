@@ -137,17 +137,27 @@ class Segment:
 
 
 class Contour(DefContour):
-    def __init__(self, points):
+    def __init__(self, points, relative=False):
         super().__init__()
         for point in points:
             self.appendPoint(point)
+        self.isRelative = relative
 
     def scale(self, value):
         return Contour([point.scale(value) for point in self._points])
 
+    def relative(self):
+        """ Return a new Contour with points in relative position"""
+        if self.isRelative:
+            raise Exception('This contour is already in relative position')
+        points = self._points
+        new_points = [points[i-1].relative(points[i]) if i != 0 else points[i]
+                      for i in range(len(points))]
+        return Contour(new_points, relative=True)
+
     def vectorize(self, delta, linejoin, linecap):
         l = len(self._points)
-        outer, inner = list(), list()
+        outer, inner = [], []
         start = 1 if self.open else 0
         end = l - 1 if self.open else l
 
@@ -195,31 +205,23 @@ class Contour(DefContour):
         else:
             raise ValueError('Unknown linecap value : \'{}\''.format(linecap))
 
-    #TODO add relative
     #TODO add oblique
 
 
 class Stroke(DefGlyph):
-    def __init__(self, contours):
+    def __init__(self, contours, relative=False):
         super().__init__()
         for contour in contours:
             self.appendContour(contour)
-        self.relative = False
+        self.isRelative = False
 
-    def to_relative(self):
-        """ Return a new Stroke object with points in relative position
+    def relative(self):
+        """ Return a new Stroke with points in relative position
         """
-        if self.relative:
-            raise Exception('The stroke is already in relative position')
-        new_contours = list()
-        for contour in self._contours:
-            points = [contour[i-1].relative(contour[i])
-                      if i != 0 else contour[i]
-                      for i in range(len(contour))]
-            new_contour = Contour(points)
-            new_contours.append(new_contour)
-
-        return type(self)(new_contours, relative=True)
+        if self.isRelative:
+            raise Exception('This stroke is already in relative position')
+        new_contours = [contour.relative() for contour in self._contours]
+        return Stroke(new_contours, relative=True)
 
     def scale(self, value):
         scaled = [contour.scale(value) for contour in self._contours]
