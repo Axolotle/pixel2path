@@ -79,11 +79,11 @@ class Vector():
         norm = self.norm()
         return Vector(self.x / norm, self.y / norm)
 
-    def rotate(self, theta):
-        """ Rotate vector of angle theta given in deg
-        """
-        rad = math.radians(theta)
-        cos, sin = math.cos(rad), math.sin(rad)
+    def rotate(self, theta, rad=False):
+        """ Rotate vector of angle theta given in deg or rad"""
+        if not rad:
+            theta = math.radians(theta)
+        cos, sin = math.cos(theta), math.sin(theta)
         return Vector(cos * self.x - sin * self.y,
                       sin * self.x + cos * self.y)
 
@@ -148,8 +148,7 @@ class Contour(DefContour):
 
     def relative(self):
         """ Return a new Contour with points in relative position"""
-        if self.isRelative:
-            raise Exception('This contour is already in relative position')
+        assert not self.isRelative
         points = self._points
         newPoints = [points[i-1].relative(points[i]) if i != 0 else points[i]
                       for i in range(len(points))]
@@ -180,12 +179,29 @@ class Contour(DefContour):
         s1 = Segment(p1, p2).getParallel(theta, delta)
         s2 = Segment(p2, p3).getParallel(theta, delta)
         if linejoin == 'bevel':
-            intersection = s1.intersection(s2)
+            return s1.intersection(s2)
         elif linejoin == 'miter':
-            intersection = s1.intersection(s2, force=True)
+            return s1.intersection(s2, force=True)
         elif linejoin == 'round':
-            NotImplemented
-        return intersection
+            intersection = s1.intersection(s2)
+            if len(intersection) == 1:
+                return intersection
+            else:
+                c = p2
+                p0, p3 = intersection
+                a, b, c = p0.vector(c), p3.vector(c), p0.vector(p3)
+                theta = 1/2 * ((a.x**2 + a.y**2) + (b.x**2 + b.y**2) - (c.x**2 + c.y**2))
+                theta = math.acos(theta / (delta**2))
+                alpha = (4/3) * math.tan(theta/4)
+                a = a.rotate(math.pi/2, rad=True).scale(alpha)
+                b = b.rotate(math.pi/2, rad=True).scale(alpha)
+                p1 = p0.displace(a, segmentType=None)
+                p2 = p3.displace(Vector(-b.x, -b.y), segmentType=None)
+                p1._segmentType = 'curve'
+                p3._segmentType = None
+                return [p0, p1, p2, p3]
+        else:
+            raise ValueError('Unknown linejoin value : \'{}\''.format(linecap))
 
     def getEdgeProjection(self, i, j, delta, linecap):
         p1, p2 = self._points[i], self._points[j]
@@ -213,13 +229,11 @@ class Stroke(DefGlyph):
         super().__init__()
         for contour in contours:
             self.appendContour(contour)
-        self.isRelative = False
+        self.isRelative = relative
 
     def relative(self):
-        """ Return a new Stroke with points in relative position
-        """
-        if self.isRelative:
-            raise Exception('This stroke is already in relative position')
+        """ Return a new Stroke with points in relative position"""
+        assert not self.isRelative
         newContours = [contour.relative() for contour in self._contours]
         return Stroke(newContours, relative=True)
 

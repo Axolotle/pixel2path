@@ -8,11 +8,25 @@ def genSVG(shape):
     genFile(paths)
 
 def genStr(contours):
-    d = []
+    d = ''
+    print(len(contours))
     for contour in contours:
-        d += ['M {},{}'.format(contour[0].x, contour[0].y)]
-        d += ['L {},{}'.format(point.x, point.y) for point in contour[1:]]
-    return Path(d=''.join(d))
+        d += 'M{},{} '.format(contour[0].x, contour[0].y)
+        for point in contour[1:]:
+            stype = point._segmentType
+            print(stype)
+            if stype == None:
+                d += '{},{} '.format(point.x, point.y)
+            if stype == 'line':
+                d += 'L{},{} '.format(point.x, point.y)
+            elif stype == 'curve':
+                d += 'C{},{} '.format(point.x, point.y)
+
+
+        # d += ['M {},{}'.format(contour[0].x, contour[0].y)]
+        # d += ['L {},{}'.format(point.x, point.y) for point in contour[1:]]
+    # return Path(d=''.join(d))
+    return Path(d=d)
 
 def genFile(paths):
     size = ('{}px'.format(1000),
