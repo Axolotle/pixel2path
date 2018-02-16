@@ -36,7 +36,7 @@ def px2pt(glyphSet, imagesDir, grid, ext='.png', **kwargs):
 
         for glyph, pixelGlyph in zip(glyphList, pixelGlyphs):
             # get the pixel position (x,y) and intensity if it's not white
-            pixels = [{'position': Point(posx, posy, 'line'),
+            pixels = [{'position': Point((posx, posy), segmentType='line'),
                        'intensity': pixelGlyph[posy, posx]}
                       for posx in range(x)
                       for posy in range(y)

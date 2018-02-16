@@ -12,8 +12,9 @@ class Point(DefPoint):
     TODO(maybe): implements __add__, __sub__
     instead/in addition of displace(), vector()
     """
-    def __init__(self, x, y, segmentType=None):
-        super().__init__((x,y), segmentType)
+    def __init__(self, coordinates, segmentType=None,
+                 smooth=False, name=None, identifier=None):
+        super().__init__(coordinates, segmentType)
 
     def __repr__(self):
         return "<{} coord: ({}, {}) type: {}>".format(
@@ -21,25 +22,25 @@ class Point(DefPoint):
 
     def vector(self, other):
         """Return the vector of two points"""
-        return Vector(other.x - self.x, other.y - self.y)
+        return Vector((other.x - self.x, other.y - self.y))
 
     def relative(self, other):
         """Return the vector of two points as a new point with segmentType"""
-        return Point(other.x - self.x, other.y - self.y, self.segmentType)
+        return Point((other.x - self.x, other.y - self.y), self.segmentType)
 
     def distance(self, other):
         """Return the length of the vector self->other"""
         return self.vector(other).norm()
 
     def scale(self, value):
-        return Point(self.x * value, self.y * value, self.segmentType)
+        return Point((self.x * value, self.y * value), self.segmentType)
 
     def displace(self, vector, segmentType='line'):
         """Return a new point with coordinates = point + vector
         It differs from the Defcon Point's move method by returning a new
         point instead of updating the instance point position.
         """
-        return Point(self.x + vector.x, self.y + vector.y, segmentType)
+        return Point((self.x + vector.x, self.y + vector.y), segmentType)
 
     def toSvgCommand(self):
         NotImplemented
@@ -48,7 +49,8 @@ class Point(DefPoint):
 class Vector():
     __slots__ = ('_x', '_y')
 
-    def __init__(self, x, y):
+    def __init__(self, coordinates):
+        x, y = coordinates
         self._x = x
         self._y = y
 
@@ -77,21 +79,21 @@ class Vector():
 
     def unitVector(self):
         norm = self.norm()
-        return Vector(self.x / norm, self.y / norm)
+        return Vector((self.x / norm, self.y / norm))
 
     def rotate(self, theta, rad=False):
         """ Rotate vector of angle theta given in deg or rad"""
         if not rad:
             theta = math.radians(theta)
         cos, sin = math.cos(theta), math.sin(theta)
-        return Vector(cos * self.x - sin * self.y,
-                      sin * self.x + cos * self.y)
+        return Vector((cos * self.x - sin * self.y,
+                      sin * self.x + cos * self.y))
 
     def combine(self, other):
-        return Vector(self.x + other.x, self.y + other.y)
+        return Vector((self.x + other.x, self.y + other.y))
 
     def scale(self, value):
-        return Vector(self.x * value, self.y * value)
+        return Vector((self.x * value, self.y * value))
 
 
 class Segment:
@@ -137,10 +139,10 @@ class Segment:
 
 
 class Contour(DefContour):
-    def __init__(self, points, relative=False):
-        super().__init__()
-        for point in points:
-            self.appendPoint(point)
+    def __init__(self, points=None, relative=False, glyph=None, pointClass=Point):
+        super().__init__(glyph, pointClass)
+        if points:
+            self._points = points
         self.isRelative = relative
 
     def scale(self, value):
@@ -159,6 +161,7 @@ class Contour(DefContour):
         outer, inner = [], []
         start = 1 if self.open else 0
         end = l - 1 if self.open else l
+        self._set_clockwise(True)
 
         if self.open:
             outer += self.getEdgeProjection(0, 1, delta, linecap)
@@ -196,7 +199,7 @@ class Contour(DefContour):
                 a = a.rotate(math.pi/2, rad=True).scale(alpha)
                 b = b.rotate(math.pi/2, rad=True).scale(alpha)
                 p1 = p0.displace(a, segmentType=None)
-                p2 = p3.displace(Vector(-b.x, -b.y), segmentType=None)
+                p2 = p3.displace(Vector((-b.x, -b.y)), segmentType=None)
                 p1._segmentType = 'curve'
                 p3._segmentType = None
                 return [p0, p1, p2, p3]
@@ -227,8 +230,7 @@ class Contour(DefContour):
 class Stroke(DefGlyph):
     def __init__(self, contours, relative=False):
         super().__init__()
-        for contour in contours:
-            self.appendContour(contour)
+        self._contours = contours
         self.isRelative = relative
 
     def relative(self):

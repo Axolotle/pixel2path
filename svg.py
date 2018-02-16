@@ -9,23 +9,18 @@ def genSVG(shape):
 
 def genStr(contours):
     d = ''
-    print(len(contours))
     for contour in contours:
         d += 'M{},{} '.format(contour[0].x, contour[0].y)
         for point in contour[1:]:
             stype = point._segmentType
-            print(stype)
             if stype == None:
                 d += '{},{} '.format(point.x, point.y)
             if stype == 'line':
                 d += 'L{},{} '.format(point.x, point.y)
             elif stype == 'curve':
                 d += 'C{},{} '.format(point.x, point.y)
-
-
-        # d += ['M {},{}'.format(contour[0].x, contour[0].y)]
-        # d += ['L {},{}'.format(point.x, point.y) for point in contour[1:]]
-    # return Path(d=''.join(d))
+        if not contour.open:
+            d += 'Z'
     return Path(d=d)
 
 def genFile(paths):
@@ -34,8 +29,8 @@ def genFile(paths):
     viewBox = '0 0 {} {}'.format(100, 100)
     doc = Drawing('../test.svg', profile='tiny',
                   size=size, viewBox=viewBox)
-    # main = Group(fill='none', stroke='black', stroke_linejoin='round',
-    #              stroke_width=str(1) + 'px', stroke_linecap='round')
+    # main = Group(fill='none', stroke='black', stroke_linejoin='bevel',
+    #              stroke_width=str(1) + 'px', stroke_linecap='butt')
     main = Group(fill='black')
 
     main.add(paths)
