@@ -164,8 +164,9 @@ class Contour(DefContour):
         outer, inner = [], []
         start = 1 if self.open else 0
         end = l - 1 if self.open else l
+        if l == 1:
+            return [Contour(self.getOnePixelProjection(delta, linecap))]
         self._set_clockwise(True)
-
         if self.open:
             outer += self.getEdgeProjection(0, 1, delta, linecap)
         for i in range(start, end):
@@ -177,9 +178,12 @@ class Contour(DefContour):
                 outer.extend(list(reversed(inner)))
             return [Contour(outer)]
         else:
-            return [Contour(outer), Contour(list(reversed(inner)))]
+            inner = Contour(inner)
+            inner._set_clockwise(False)
+            return [Contour(outer), inner]
 
     def getCornerProjection(self, i, delta, theta, linejoin):
+        assert linecap in ('bevel', 'miter', 'round')
         last = 0 if i == len(self._points) - 1 else i + 1
         p1, p2, p3 = self._points[i-1], self._points[i], self._points[last]
         s1 = Segment(p1, p2).getParallel(theta, delta)
@@ -194,10 +198,9 @@ class Contour(DefContour):
                 return intersection
             else:
                 return self.getCurvePoints(*intersection, p2, delta)
-        else:
-            raise ValueError('Unknown linejoin value : \'{}\''.format(linecap))
 
     def getEdgeProjection(self, i, j, delta, linecap):
+        assert linecap in ('square', 'spike', 'butt', 'round')
         p1, p2 = self._points[i], self._points[j]
         uv = p1.vector(p2).unitVector()
         vs = [uv.rotate(-90).scale(delta),
@@ -213,7 +216,9 @@ class Contour(DefContour):
         elif linecap == 'round':
             vs = [p1.displace(v) for v in vs]
             curves = self.getCurvePoints(vs[0], vs[1], p1, delta)
-            curves += self.getCurvePoints(vs[1], vs[2], p1, delta)#[1:]
+            # FIXME successions of curves produce an extra line between
+            # c1 end point and c2 start point
+            curves += self.getCurvePoints(vs[1], vs[2], p1, delta)[1:]
             return curves
         else:
             raise ValueError('Unknown linecap value : \'{}\''.format(linecap))
@@ -233,8 +238,26 @@ class Contour(DefContour):
         p2 = p3.displace(-b, None)
         return [p0, p1, p2, p3]
 
-    def getOnePixelProjection(self, p, delta):
-        NotImplemented
+    def getOnePixelProjection(self, delta, linecap):
+        assert linecap in ('square', 'spike', 'butt', 'round')
+        p = self._points[0]
+        if linecap == 'square':
+            vs = [Vector((delta, delta)), Vector((-delta, delta)),
+                  Vector((-delta, -delta)), Vector((delta, -delta))]
+            return [p.displace(v) for v in vs]
+        vs = [Vector((0, -delta)), Vector((-delta, 0)),
+              Vector((0, delta)), Vector((delta, 0))]
+        pts = [p.displace(v) for v in vs]
+        if linecap == 'spike' or linecap == 'butt':
+            return pts
+        elif linecap == 'round':
+            # FIXME successions of curves produce an extra line between
+            # c1 end point and c2 start point
+            curves = self.getCurvePoints(pts[0], pts[1], p, delta)
+            for i in range(1, 4):
+                j = i+1 if i < 3 else 0
+                curves += self.getCurvePoints(pts[i], pts[j], p, delta)[1:]
+            return curves
 
     #TODO add oblique
 
