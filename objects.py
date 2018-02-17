@@ -58,6 +58,9 @@ class Vector():
         return "<{} coord: ({}, {})>".format(
             self.__class__.__name__, self.x, self.y)
 
+    def __neg__(self):
+        return Vector((-self.x, -self.y))
+
     def _get_x(self):
         return self._x
 
@@ -190,19 +193,7 @@ class Contour(DefContour):
             if len(intersection) == 1:
                 return intersection
             else:
-                c = p2
-                p0, p3 = intersection
-                a, b, c = p0.vector(c), p3.vector(c), p0.vector(p3)
-                theta = 1/2 * ((a.x**2 + a.y**2) + (b.x**2 + b.y**2) - (c.x**2 + c.y**2))
-                theta = math.acos(theta / (delta**2))
-                alpha = (4/3) * math.tan(theta/4)
-                a = a.rotate(math.pi/2, rad=True).scale(alpha)
-                b = b.rotate(math.pi/2, rad=True).scale(alpha)
-                p1 = p0.displace(a, segmentType=None)
-                p2 = p3.displace(Vector((-b.x, -b.y)), segmentType=None)
-                p1._segmentType = 'curve'
-                p3._segmentType = None
-                return [p0, p1, p2, p3]
+                return self.getCurvePoints(*intersection, p2, delta)
         else:
             raise ValueError('Unknown linejoin value : \'{}\''.format(linecap))
 
@@ -213,16 +204,37 @@ class Contour(DefContour):
               uv.rotate(180).scale(delta),
               uv.rotate(90).scale(delta)]
         if linecap == 'spike':
-            return [p1.displace(v, 'line') for v in vs]
+            return [p1.displace(v) for v in vs]
         elif linecap == 'square':
             return [p1.displace(vs[1].combine(vs[0])),
                     p1.displace(vs[1].combine(vs[2]))]
         elif linecap == 'butt':
             return [p1.displace(vs[0]), p1.displace(vs[2])]
         elif linecap == 'round':
-            NotImplemented
+            vs = [p1.displace(v) for v in vs]
+            curves = self.getCurvePoints(vs[0], vs[1], p1, delta)
+            curves += self.getCurvePoints(vs[1], vs[2], p1, delta)#[1:]
+            return curves
         else:
             raise ValueError('Unknown linecap value : \'{}\''.format(linecap))
+
+    def getCurvePoints(self, p0, p3, center, delta):
+        a, b, c = p0.vector(center), p3.vector(center), p0.vector(p3)
+        theta = 1/2 * ((a.x**2 + a.y**2) + (b.x**2 + b.y**2) - (c.x**2 + c.y**2))
+        theta = math.acos(theta / (delta**2))
+        alpha = (4/3) * math.tan(theta/4)
+        # Define control points's vectors a & b
+        a = a.rotate(math.pi/2, rad=True).scale(alpha)
+        b = b.rotate(math.pi/2, rad=True).scale(alpha)
+        # Duplicate points since they can be used in other curves
+        p0 = Point((p0.x, p0.y), 'line')
+        p3 = Point((p3.x, p3.y), None)
+        p1 = p0.displace(a, 'curve')
+        p2 = p3.displace(-b, None)
+        return [p0, p1, p2, p3]
+
+    def getOnePixelProjection(self, p, delta):
+        NotImplemented
 
     #TODO add oblique
 
