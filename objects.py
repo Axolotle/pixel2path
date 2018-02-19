@@ -82,6 +82,9 @@ class Vector():
 
     def unitVector(self):
         norm = self.norm()
+        print(self.x, self.y)
+        print((self.x / norm, self.y / norm))
+
         return Vector((self.x / norm, self.y / norm))
 
     def rotate(self, theta, rad=False):
@@ -281,6 +284,12 @@ class Contour(DefContour):
                 contour.append(Point((point.x - CB, point.y), point._segmentType))
         return Contour(contour)
 
+    def toUFOCoord(self, newZero):
+        points = [Point((pt.x, newZero - pt.y), pt._segmentType)
+                  for pt in self._points]
+        return Contour(points)
+
+
 
 class Stroke(DefGlyph):
     def __init__(self, contours, relative=False):
@@ -308,3 +317,7 @@ class Stroke(DefGlyph):
     def oblique(self, theta):
         obliqued = [contour.oblique(theta) for contour in self._contours]
         return Stroke(obliqued)
+
+    def toUFOCoord(self, newZero):
+        ufo = [contour.toUFOCoord(newZero) for contour in self._contours]
+        return Stroke(ufo)
