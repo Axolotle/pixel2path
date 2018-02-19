@@ -175,37 +175,38 @@ class Contour(DefContour):
         if self.open:
             outer += self.getEdgeProjection(0, 1, delta, linecap)
         for i in range(start, end):
-            outer += self.getCornerProjection(i, delta, 90, linejoin)
-            inner += self.getCornerProjection(i, delta, -90, linejoin)
+            outer += self.getCornerProjection(i, delta, 1, linejoin)
+            inner.insert(0, self.getCornerProjection(i, delta, -1, linejoin))
+        if len(inner) > 0:
+            inner = [p for serie in inner for p in serie]
         if self.open:
             outer += self.getEdgeProjection(l-1, l-2, delta, linecap)
-            if len(inner) > 0:
-                outer.extend(list(reversed(inner)))
+            outer += inner
             return [Contour(outer)]
         else:
-            outer, inner = Contour(outer), Contour(inner)
-            inner._set_clockwise(False)
-            return [outer, inner]
+            return [Contour(outer), Contour(inner)]
 
-    def getCornerProjection(self, i, delta, theta, linejoin):
-        assert linejoin in ('bevel', 'miter', 'round')
+    def getCornerProjection(self, i, delta, trend, linejoin):
+        assert linejoin in ('bevel', 'miter', 'round'), 'Unknown linejoin type'
         last = 0 if i == len(self._points) - 1 else i + 1
         p1, p2, p3 = self._points[i-1], self._points[i], self._points[last]
-        s1 = Segment(p1, p2).getParallel(theta, delta)
-        s2 = Segment(p2, p3).getParallel(theta, delta)
-        if linejoin == 'bevel':
-            return s1.intersection(s2)
-        elif linejoin == 'miter':
+        s1 = Segment(p1, p2).getParallel(90 * trend, delta)
+        s2 = Segment(p2, p3).getParallel(90 * trend, delta)
+        if linejoin == 'miter':
             return s1.intersection(s2, force=True)
+        intersection = s1.intersection(s2)
+        if trend == -1:
+            intersection.reverse()
+        if linejoin == 'bevel':
+            return intersection
         elif linejoin == 'round':
-            intersection = s1.intersection(s2)
             if len(intersection) == 1:
                 return intersection
             else:
                 return self.getCurvePoints(*intersection, p2, delta)
 
     def getEdgeProjection(self, i, j, delta, linecap):
-        assert linecap in ('square', 'spike', 'butt', 'round')
+        assert linecap in ('square', 'spike', 'butt', 'round'), 'Unknown linejoin type'
         p1, p2 = self._points[i], self._points[j]
         uv = p1.vector(p2).unitVector()
         vs = [uv.rotate(-90).scale(delta),
@@ -238,8 +239,8 @@ class Contour(DefContour):
         b = b.rotate(math.pi/2, rad=True).scale(alpha)
         # Duplicate points since they can be used in other curves
         p0 = Point((p0.x, p0.y), 'line')
-        p3 = Point((p3.x, p3.y), None)
-        p1 = p0.displace(a, 'curve')
+        p3 = Point((p3.x, p3.y), 'curve')
+        p1 = p0.displace(a, None)
         p2 = p3.displace(-b, None)
         return [p0, p1, p2, p3]
 
@@ -279,8 +280,6 @@ class Contour(DefContour):
             else:
                 contour.append(Point((point.x - CB, point.y), point._segmentType))
         return Contour(contour)
-
-    #TODO add oblique
 
 
 class Stroke(DefGlyph):
