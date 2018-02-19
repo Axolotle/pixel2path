@@ -161,11 +161,16 @@ class Contour(DefContour):
 
     def vectorize(self, delta, linejoin, linecap):
         l = len(self._points)
+        if l == 1:
+            return [Contour(self.getOnePixelProjection(delta, linecap))]
+        if l == 2:
+            outer = self.getEdgeProjection(0, 1, delta, linecap)
+            outer += self.getEdgeProjection(1, 0, delta, linecap)
+            return [Contour(outer)]
+
         outer, inner = [], []
         start = 1 if self.open else 0
         end = l - 1 if self.open else l
-        if l == 1:
-            return [Contour(self.getOnePixelProjection(delta, linecap))]
         self._set_clockwise(True)
         if self.open:
             outer += self.getEdgeProjection(0, 1, delta, linecap)
@@ -178,12 +183,12 @@ class Contour(DefContour):
                 outer.extend(list(reversed(inner)))
             return [Contour(outer)]
         else:
-            inner = Contour(inner)
+            outer, inner = Contour(outer), Contour(inner)
             inner._set_clockwise(False)
-            return [Contour(outer), inner]
+            return [outer, inner]
 
     def getCornerProjection(self, i, delta, theta, linejoin):
-        assert linecap in ('bevel', 'miter', 'round')
+        assert linejoin in ('bevel', 'miter', 'round')
         last = 0 if i == len(self._points) - 1 else i + 1
         p1, p2, p3 = self._points[i-1], self._points[i], self._points[last]
         s1 = Segment(p1, p2).getParallel(theta, delta)
@@ -259,6 +264,22 @@ class Contour(DefContour):
                 curves += self.getCurvePoints(pts[i], pts[j], p, delta)[1:]
             return curves
 
+    def oblique(self, theta):
+        contour = []
+        theta = math.radians(theta)
+        baseline = 6  # FIXME change with ascender - descender - 1
+        for point in self._points:
+            if point.y == baseline:
+                contour.append(point)
+                continue
+            AC = Point((point.x, baseline)).vector(point).norm()
+            CB = AC * math.tan(theta)
+            if point.y < baseline:
+                contour.append(Point((point.x + CB, point.y), point._segmentType))
+            else:
+                contour.append(Point((point.x - CB, point.y), point._segmentType))
+        return Contour(contour)
+
     #TODO add oblique
 
 
@@ -284,3 +305,7 @@ class Stroke(DefGlyph):
             vectorized += contour.vectorize(width/2, linejoin, linecap)
         # TODO add boolean union operation
         return Stroke(vectorized)
+
+    def oblique(self, theta):
+        obliqued = [contour.oblique(theta) for contour in self._contours]
+        return Stroke(obliqued)
