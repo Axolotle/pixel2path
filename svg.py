@@ -10,6 +10,12 @@ def genSVG(shape):
 def genStr(contours):
     d = ''
     for contour in contours:
+        # UFO specs for curve are differents, invert curve point info
+        for i, p in enumerate(contour):
+            if p._segmentType == 'curve':
+                contour[i-2]._segmentType = 'curve'
+                contour[i]._segmentType = None
+
         d += 'M{},{} '.format(contour[0].x, contour[0].y)
         for point in contour[1:]:
             stype = point._segmentType
@@ -29,9 +35,9 @@ def genFile(paths):
     viewBox = '0 0 {} {}'.format(100, 100)
     doc = Drawing('../test.svg', profile='tiny',
                   size=size, viewBox=viewBox)
-    # main = Group(fill='none', stroke='black', stroke_linejoin='bevel',
-    #              stroke_width=str(1) + 'px', stroke_linecap='butt')
-    main = Group(fill='black')
+    main = Group(fill='none', stroke='black', stroke_linejoin='bevel',
+                 stroke_width=str(1) + 'px', stroke_linecap='butt')
+    # main = Group(fill='black')
 
     main.add(paths)
 

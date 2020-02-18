@@ -82,9 +82,6 @@ class Vector():
 
     def unitVector(self):
         norm = self.norm()
-        print(self.x, self.y)
-        print((self.x / norm, self.y / norm))
-
         return Vector((self.x / norm, self.y / norm))
 
     def rotate(self, theta, rad=False):
@@ -290,7 +287,6 @@ class Contour(DefContour):
         return Contour(points)
 
 
-
 class Stroke(DefGlyph):
     def __init__(self, contours, relative=False):
         super().__init__()
@@ -311,7 +307,12 @@ class Stroke(DefGlyph):
         vectorized = []
         for contour in self._contours:
             vectorized += contour.vectorize(width/2, linejoin, linecap)
-        # TODO add boolean union operation
+        # from booleanOperations import BooleanOperationManager
+        # from ufoLib.pointPen import BasePointToSegmentPen
+        # pen = self.getPointPen()
+        # manager = BooleanOperationManager()
+        # manager.union(vectorized, pen)#self.getPointPen())
+
         return Stroke(vectorized)
 
     def oblique(self, theta):

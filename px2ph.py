@@ -27,8 +27,9 @@ if __name__ == "__main__":
     strokeStyle = config['fontFamily'][0]['stroke']
     glyphs = px2pt(config['glyphSet'], **config['pxInfos'])
 
+
     if args.svg:
-        shape = Stroke(glyphs['A']).scale(5).vectorize(**strokeStyle)
+        shape = Stroke(glyphs['D']).vectorize(**strokeStyle)
         genSVG(shape)
 
     if args.ufo:
