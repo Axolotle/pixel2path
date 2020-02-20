@@ -1,5 +1,5 @@
 from numpy import ones, uint8
-from imageio import imwrite as save_as_png
+from PIL import Image
 
 
 def generate_numpy_img(grid, quantity, color, bg_color=[255, 255, 255], inner_grid=[1,1], alt_color=None):
@@ -21,9 +21,11 @@ def generate_numpy_img(grid, quantity, color, bg_color=[255, 255, 255], inner_gr
 
     return img
 
+
 def generate_file(filename, options):
     """ Generate an image as a grid to draw glyphs and save it as a png file """
-    save_as_png(filename, generate_numpy_img(**options))
+    img = Image.fromarray(generate_numpy_img(**options))
+    img.save(filename, format='png')
 
 
 if __name__ == '__main__':
