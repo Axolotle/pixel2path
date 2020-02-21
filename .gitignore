@@ -1,2 +1,5 @@
 venv/
 *pycache*
+
+tests/resources/output/*
+!tests/resources/output/.gitkeep

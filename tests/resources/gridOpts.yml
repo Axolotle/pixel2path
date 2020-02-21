@@ -1,0 +1,7 @@
+output: tests/resources/output/grid.png
+quantity: 10
+grid: [5, 9]
+inner_grid: [1, 2]
+color: [255, 0, 0]
+alt_color: [255, 50, 50]
+bg_color: [255, 255, 255]
