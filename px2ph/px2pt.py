@@ -1,62 +1,115 @@
-from os import listdir
-from os.path import isfile, join, splitext
+from os import listdir, path
 
-import cv2
+from numpy import asarray
+from PIL import Image
 
-from objects import Point, Contour
 
-def px2pt(glyphSet, imagesDir, grid, ext='.png', **kwargs):
+ext = '.png'
+
+
+def find_images_in_folder(folder):
     """
-    Read several images and parse pixel position in absolute position
-    for each glyphs given as argument. points's lists are ordered
-    by grey intensity.
-
-    Return a dict of glyphs with series of point and closed information
+    Searches for png files in the provided folder and returns their absolute path.
     """
-    x, y = grid
+    return [
+        path.join(folder, file) for file in listdir(folder)
+        if path.isfile(path.join(folder, file)) and path.splitext(file)[1] == ext
+    ]
 
-    if imagesDir[-1] != '/':
-        # FIXME to remove
-        imagesDir = '../' + imagesDir + '/'
 
-    layersPath = [imagesDir + f for f in listdir(imagesDir)
-                   if isfile(join(imagesDir, f))
-                   and splitext(f)[1] == ext]
-    glyphList = list(glyphSet)
-    # generate a dict with all glyphs given
-    glyphs = {glyph: [] for glyph in glyphList}
+def get_image_as_nparray(filepath):
+    """
+    Reads an image file, converts it to greyscale then returns it as a numpy array.
+    """
+    nparray = None
+    with Image.open(filepath) as img:
+        nparray = asarray(img.convert('L'))
+    return nparray
 
-    for layer in layersPath:
-        # Read & convert the image to greyscale
-        img = cv2.imread(layer)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Extract every glyphs from the image
-        pixelGlyphs = [img[1:y + 1, a:a + x]
-                        for a in range(1, len(glyphList)*(x + 1), x + 1)]
 
-        for glyph, pixelGlyph in zip(glyphList, pixelGlyphs):
-            # get the pixel position (x,y) and intensity if it's not white
-            pixels = [{'position': Point((posx, posy), segmentType='line'),
-                       'intensity': pixelGlyph[posy, posx]}
-                      for posx in range(x)
-                      for posy in range(y)
-                      if pixelGlyph[posy, posx] < 255]
-            if len(pixels) == 0:
-                continue
-            # Sort the list by intensity
-            pixels = sorted(pixels, key=lambda px: px['intensity'])
-            # If the light intensity of the first point is 0 (black)
-            # then the character's path has to be closed
-            if pixels[0]['intensity'] != 0:
-                pixels[0]['position']._set_segmentType('move')
-            # build the contour
-            contour = Contour([px['position'] for px in pixels])
-             # = [px['position'] for px in pixels]
-            glyphs[glyph].append(contour)
+def split_nparray(nparray, grid, margin=[1, 1]):
+    """
+    Splits the numpy array into several chunks representing a glyph.
+    """
+    width = grid[0] + margin[0]
+    glyph_quantity = int((nparray.shape[1] - margin[0]) / width)
+    return [
+        nparray[margin[1]:grid[1] + margin[1], n:n + grid[0]]
+        for n in range(1, glyph_quantity * width, width)
+    ]
 
-    # if none of the layers gave pixel informations, set glyph to None
-    for glyph in glyphs:
-        if len(glyphs[glyph]) == 0:
-            glyphs[glyph] = None
+
+def nparray_to_points(nparray, grid):
+    """
+    Arranges the pixels in order of brightness and returns an array of
+    points positions specifying a path.
+    """
+    points = [
+        { 'pos': [posx, posy], 'intensity': nparray[posy, posx] }
+        for posx in range(grid[0])
+        for posy in range(grid[1])
+        if nparray[posy, posx] < 255
+    ]
+
+    if len(points) != 0:
+        points = sorted(points, key=lambda pt: pt['intensity'])
+        return [ pt['pos'] for pt in points ]
+    else:
+        return None
+
+
+def px2pt(folder, grid, margin=[1, 1]):
+    """
+    Reads several images and parse pixel position in absolute position
+    for each glyphs.
+
+    Returns an array of glyphs represented by an array of series of points (one
+    for each given layer)
+    """
+    layers_paths = find_images_in_folder(folder)
+
+    glyphs = None
+    for i, layer_path in enumerate(layers_paths):
+        nparray = get_image_as_nparray(layer_path)
+        splitted_nparray = split_nparray(nparray, grid)
+
+        if glyphs is None:
+            glyphs = [None for n in splitted_nparray]
+
+        for index, glyph_nparray in enumerate(splitted_nparray):
+            glyph_part = nparray_to_points(glyph_nparray, grid)
+            if glyph_part is not None:
+                if glyphs[index] is None:
+                    glyphs[index] = []
+                glyphs[index].append(glyph_part)
 
     return glyphs
+
+
+if __name__ == '__main__':
+    from os.path import abspath
+    from argparse import ArgumentParser
+
+    from px2ph.utils.yaml import get_yaml, save_as_yaml
+
+
+    parser = ArgumentParser(
+        prog='px2pt',
+        description='read png images and retreive path data'
+    )
+    parser.add_argument('-c', '--config_file',
+                        required=True,
+                        help='path to a yaml file containing an input key with pixel informations',
+                        type=abspath)
+    parser.add_argument('-o', '--output',
+                        help='file path where to dump the result as yaml',
+                        type=abspath)
+
+    args = parser.parse_args()
+    options = get_yaml(args.config_file)
+    glyphs = px2pt(**options['input'])
+
+    if args.output is not None:
+        save_as_yaml(args.output, glyphs)
+    else:
+        print(glyphs)
