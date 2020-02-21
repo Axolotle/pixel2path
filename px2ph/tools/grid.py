@@ -22,17 +22,17 @@ def generate_numpy_img(grid, quantity, color, bg_color=[255, 255, 255], inner_gr
     return img
 
 
-def generate_file(filename, options):
+def generate_file(fp, options):
     """ Generate an image as a grid to draw glyphs and save it as a png file """
     img = Image.fromarray(generate_numpy_img(**options))
-    img.save(filename, format='png')
+    img.save(fp, format='png')
 
 
 if __name__ == '__main__':
     from os.path import abspath
     from argparse import ArgumentParser
 
-    from yaml import load, CLoader as Loader
+    from px2ph.utils.yaml import get_yaml
 
 
     parser = ArgumentParser(
@@ -46,8 +46,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    options = None
-    with open(args.config_file, 'r') as yaml_file:
-        options = load(yaml_file.read(), Loader=Loader)
+    options = get_yaml(args.config_file)
 
     generate_file(options.pop('output'), options)
