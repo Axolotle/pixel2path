@@ -21,10 +21,8 @@ def get_image_as_nparray(filepath):
     """
     Reads an image file, converts it to greyscale then returns it as a numpy array.
     """
-    nparray = None
     with Image.open(filepath) as img:
-        nparray = asarray(img.convert('L'))
-    return nparray
+        return asarray(img.convert('LA'))
 
 
 def split_nparray(nparray, grid, margin=[1, 1]):
@@ -45,10 +43,10 @@ def nparray_to_points(nparray, grid):
     points positions specifying a path.
     """
     points = [
-        { 'pos': [posx, posy], 'intensity': nparray[posy, posx] }
+        {'pos': [posx, posy], 'intensity': nparray[posy, posx][0]}
         for posx in range(grid[0])
         for posy in range(grid[1])
-        if nparray[posy, posx] < 255
+        if nparray[posy, posx][1] > 0
     ]
 
     if len(points) != 0:
