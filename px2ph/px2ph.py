@@ -1,36 +1,50 @@
-import argparse
+from os import path
 
-from yaml import load
+from defcon import Font
 
-from px2pt import px2pt
-from svg import genSVG
-from ufo import genUFO
-
-# For testing
-from objects import Stroke, Point, Vector
+from px2ph.tools.glyphset import parse_range
+from px2ph.px2pt import px2pt
 
 
-def args():
-    parser = argparse.ArgumentParser(prog='px2ph',
-                                     description='Pixel to vector converter')
-    parser.add_argument('yamlpath', help='path to the yaml config file')
-    parser.add_argument('--svg', action='store_true')
-    parser.add_argument('--ufo', action='store_true')
-    return parser.parse_args()
+def px2font(input, output):
+    glyphs_points = px2pt(**input)
+    glyph_set = parse_range(output['glyphSet'])
+    assert len(glyphs_points) == len(glyph_set), \
+        "glyphs and glyph_set doesn't have the same size"
 
-if __name__ == "__main__":
-    args = args()
-    config = None
-    with open(args.yamlpath, 'r') as yaml:
-        config = load(yaml.read())
+    font = Font()
 
-    strokeStyle = config['fontFamily'][0]['stroke']
-    glyphs = px2pt(config['glyphSet'], **config['pxInfos'])
+    for glyph_repr, contours in zip(glyph_set, glyphs_points):
+        glyph = font.newGlyph(glyph_set[glyph_repr]['name'])
+        glyph.unicodes = [glyph_repr]
+        pen = glyph.getPointPen()
+
+        for contour in contours:
+            pen.beginPath()
+            pen.addPoint(contour[0], 'move')
+
+            for point in contour[1:]:
+                pen.addPoint(point, 'line')
+
+            pen.endPath()
+
+    font.save(path=path.abspath(output['folder']))
 
 
-    if args.svg:
-        shape = Stroke(glyphs['D']).vectorize(**strokeStyle)
-        genSVG(shape)
+if __name__ == '__main__':
+    from argparse import ArgumentParser
 
-    if args.ufo:
-        genUFO(glyphs, strokeStyle)
+    from px2ph.utils.yaml import get_yaml
+
+
+    parser = ArgumentParser(
+        prog='px2ph.tools.grid',
+        description='png font grid generator'
+    )
+    parser.add_argument('-c', '--config_file',
+                        required=True,
+                        help='path to a yaml file containing the grid options',
+                        type=path.abspath)
+    args = parser.parse_args()
+
+    px2font(**get_yaml(args.config_file))
