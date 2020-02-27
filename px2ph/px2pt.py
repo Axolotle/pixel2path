@@ -41,6 +41,7 @@ def nparray_to_points(nparray, grid):
     """
     Arranges the pixels in order of brightness and returns an array of
     points positions specifying a path.
+    Coordinates origin is top-left.
     """
     points = [
         {'pos': [posx, posy], 'intensity': nparray[posy, posx][0]}
