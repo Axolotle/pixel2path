@@ -1,10 +1,12 @@
 from os import path
 
 from fontTools.misc.transform import Identity, Transform
+from fontTools.pens.pointPen import SegmentToPointPen
 from defcon import Font
 
 from px2ph.tools.glyphset import parse_range
 from px2ph.px2pt import px2pt
+from px2ph.pens.strokePen import StrokeToShapeSegmentPen
 
 
 def parse_font_info(data):
@@ -26,8 +28,12 @@ def px2font(input, info, output):
     assert len(glyphs_points) == len(glyph_set), \
         "glyphs and glyph_set doesn't have the same size"
 
-    scale_tf = Transform(info['pixelSizeInEm'], 0, 0, info['pixelSizeInEm'], 0, 0)
-    UFO_tf = scale_tf.transform((1, 0, 0, -1, 0.5, input['grid'][1] + info['descender'] - 0.5))
+    px_size = info['pixelSizeInEm']
+    scale_tf = Transform(px_size, 0, 0, px_size, 0, 0)
+    # transformation that inverts the y axis coordinates, translate so the descender
+    # part of the glyph falls beyond the baseline and translate 'half' a pixel
+    UFO_tf = scale_tf.transform(
+        (1, 0, 0, -1, 0.5, input['grid'][1] + info['descender'] - 0.5))
 
     info = parse_font_info(info)
 
@@ -37,16 +43,14 @@ def px2font(input, info, output):
     for glyph_repr, contours in zip(glyph_set, glyphs_points):
         glyph = font.newGlyph(glyph_set[glyph_repr]['name'])
         glyph.unicodes = [glyph_repr]
-        pen = glyph.getPointPen()
+        out_pen = glyph.getPointPen()
+        pen = StrokeToShapeSegmentPen(SegmentToPointPen(out_pen), px_size)
 
         for contour in contours:
-            contour = UFO_tf.transformPoints(contour)
+            # contour = UFO_tf.transformPoints(contour)
             pen.beginPath()
-            pen.addPoint(contour[0], 'move')
-
-            for point in contour[1:]:
-                pen.addPoint(point, 'line')
-
+            for point in contour:
+                pen.addPoint(UFO_tf.transformPoint(point[0]), point[1])
             pen.endPath()
 
     font.save(path=path.abspath(output['folder']))
