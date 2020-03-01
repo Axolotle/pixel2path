@@ -39,6 +39,7 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         pointslen = len(points)
         open = points[0][1] == 'move'
 
+        self.innerPath = []
         self.beginPath()
         for i in range(pointslen):
             if open and (i == 0 or i == pointslen-1):
@@ -48,27 +49,36 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
             p2 = points[i+1] if i != pointslen-1  else points[0]
             self._linejoin(p0, p1, p2)
 
+        self.innerPath.reverse()
+        # merge paths if contour is an open contour else ask to draw two contours
+        if open:
+            self.currentPath += self.innerPath
+        else:
+            super().endPath()
+            self.beginPath()
+            self.currentPath = self.innerPath
         super().endPath()
+        self.innerPath = None
 
     def _linecap(self, p0, p1):
         uv = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
         for theta, segmentType in [(-90, 'line'), (180, 'line'), (90, 'line')]:
-            pt = math_.roundpt(math_.move(p0[0], math_.rotate(uv, theta)))
+            pt = math_.move(p0[0], math_.rotate(uv, theta))
             self.currentPath.append((pt, segmentType, False, None, {}))
 
     def _linejoin(self, p0, p1, p2):
         s0a, s0b = math_.double_parallel((p0[0], p1[0]), self.offset)
         s1a, s1b = math_.double_parallel((p1[0], p2[0]), self.offset)
-        intersections = [math_.intersect(s0a, s1a), math_.intersect(s0b, s1b)]
-
-        if intersections[0] is None:
-            self.currentPath.append((math_.roundpt(s0a[1]), 'line', False, None, {}))
-            self.currentPath.append((math_.roundpt(s1a[0]), 'line', False, None, {}))
+        i0 = math_.intersect(s0a, s1a)
+        i1 = math_.intersect(s0b, s1b)
+        if i0 is None:
+            self.currentPath.append((s0a[1], 'line', False, None, {}))
+            self.currentPath.append((s1a[0], 'line', False, None, {}))
         else:
-            self.currentPath.append((math_.roundpt(intersections[0]), 'line', False, None, {}))
+            self.currentPath.append((i0, 'line', False, None, {}))
 
-        if intersections[1] is None:
-            self.currentPath.insert(0, (math_.roundpt(s0b[1]), 'line', False, None, {}))
-            self.currentPath.insert(0, (math_.roundpt(s1b[0]), 'line', False, None, {}))
+        if i1 is None:
+            self.innerPath.append((s0b[1], 'line', False, None, {}))
+            self.innerPath.append((s1b[0], 'line', False, None, {}))
         else:
-            self.currentPath.insert(0, (math_.roundpt(intersections[1]), 'line', False, None, {}))
+            self.innerPath.append((i1, 'line', False, None, {}))
