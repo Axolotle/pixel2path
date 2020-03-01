@@ -39,8 +39,13 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         pointslen = len(points)
         open = points[0][1] == 'move'
 
-        self.innerPath = []
         self.beginPath()
+        if pointslen == 1:
+            self._one_point(points[0])
+            super().endPath()
+            return
+
+        self.innerPath = []
         for i in range(pointslen):
             if open and (i == 0 or i == pointslen-1):
                 self._linecap(points[i], points[i+1 if i == 0 else i-1])
@@ -82,3 +87,8 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
             self.innerPath.append((s1b[0], 'line', False, None, {}))
         else:
             self.innerPath.append((i1, 'line', False, None, {}))
+
+    def _one_point(self, pt):
+        vs = [(0, -self.offset), (self.offset, 0), (0, self.offset), (-self.offset, 0)]
+        for v in vs:
+            self.currentPath.append((math_.move(pt[0], v), 'line', False, None, {}))
