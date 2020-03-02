@@ -111,7 +111,48 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         self.innerPath.append((i1, 'line', False, None, {}))
 
     def _linejoin_round(self, p0, p1, p2):
-        raise NotImplementedError
+        s0a, s0b = math_.double_parallel((p0[0], p1[0]), self.offset)
+        s1a, s1b = math_.double_parallel((p1[0], p2[0]), self.offset)
+        i0 = math_.intersect(s0a, s1a)
+        i1 = math_.intersect(s0b, s1b)
+
+        if i0 is None:
+            a = math_.vector(s0a[1], p1[0])
+            b = math_.vector(s1a[0], p1[0])
+            c = math_.vector(s0a[1], s1a[0])
+            theta = ((a[0]**2 + a[1]**2)
+                     + (b[0]**2 + b[1]**2)
+                     - (c[0]**2 + c[1]**2))
+            theta = math.acos((1/2 * theta) / (self.offset**2))
+            alpha = (4/3) * math.tan(theta/4)
+
+            cp1 = math_.move(s0a[1], math_.rotate(math_.scale(a, alpha), 90))
+            cp2 = math_.move(s1a[0], math_.rotate(math_.scale(b, alpha), -90))
+
+            self.currentPath.append((s0a[1], 'line', False, None, {}))
+            self.currentPath.append((cp1, None, False, None, {}))
+            self.currentPath.append((cp2, None, False, None, {}))
+            self.currentPath.append((s1a[0], 'curve', False, None, {}))
+        else:
+            self.currentPath.append((i0, 'line', False, None, {}))
+
+        if i1 is None:
+            a = math_.vector(s0b[1], p1[0])
+            b = math_.vector(s1b[0], p1[0])
+            c = math_.vector(s0b[1], s1b[0])
+            theta = (a[0]**2 + a[1]**2) + (b[0]**2 + b[1]**2) - (c[0]**2 + c[1]**2)
+            theta = math.acos((1/2 * theta) / (self.offset**2))
+            alpha = (4/3) * math.tan(theta/4)
+
+            cp1 = math_.move(s0b[1], math_.rotate(math_.scale(a, alpha), -90))
+            cp2 = math_.move(s1b[0], math_.rotate(math_.scale(b, alpha), 90))
+
+            self.innerPath.append((s0b[1], 'curve', False, None, {}))
+            self.innerPath.append((cp1, None, False, None, {}))
+            self.innerPath.append((cp2, None, False, None, {}))
+            self.innerPath.append((s1b[0], 'line', False, None, {}))
+        else:
+            self.innerPath.append((i1, 'line', False, None, {}))
 
     # LINECAPS METHODS
 
