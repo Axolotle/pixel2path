@@ -124,8 +124,30 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         self.currentPath.append((a, 'line', False, None, {}))
         self.currentPath.append((b, 'line', False, None, {}))
 
-    def _linecap_round(self, p0, p3):
-        raise NotImplementedError
+    def _linecap_round(self, center, next):
+        v1 = math_.scale(math_.uvector(next[0], center[0]), self.offset)
+        v0 = math_.rotate(v1, 90)
+        v2 = math_.rotate(v1, -90)
+        alpha = (4/3) * math.tan(math.acos(0)/4)
+        vcp0 = math_.rotate(math_.scale((-v0[0], -v0[1]), alpha), 90)
+        vcp1 = math_.rotate(math_.scale((-v1[0], -v1[1]), alpha), -90)
+
+        p0 = math_.move(center[0], v0)
+        self.currentPath.append((p0, 'line', False, None, {}))
+
+        p1 = math_.move(center[0], v1)
+        cp1 = math_.move(p0, vcp0)
+        cp2 = math_.move(p1, vcp1)
+        self.currentPath.append((cp1, None, False, None, {}))
+        self.currentPath.append((cp2, None, False, None, {}))
+        self.currentPath.append((p1, 'curve', False, None, {}))
+
+        p2 = math_.move(center[0], v2)
+        cp1 = math_.move(p1, (-vcp1[0], -vcp1[1]))
+        cp2 = math_.move(p2, vcp0)
+        self.currentPath.append((cp1, None, False, None, {}))
+        self.currentPath.append((cp2, None, False, None, {}))
+        self.currentPath.append((p2, 'curve', False, None, {}))
 
     def _linecap_sharp(self, p0, p1):
         v = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
@@ -149,8 +171,26 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
             pt = math_.move(p0[0], v)
             self.currentPath.append((pt, 'line', False, None, {}))
 
-    def _one_point_round(self, p0):
-        raise NotImplementedError
+    def _one_point_round(self, center):
+        v0 = (self.offset, 0)
+        v1 = (0, -self.offset)
+
+        alpha = (4/3) * math.tan(math.acos(0)/4)
+        vcp0 = (-self.offset*alpha, 0)
+        vcp1 = (0, -self.offset*alpha)
+
+        for i in range(4):
+            v0 = math_.rotate(v0, -90)
+            v1 = math_.rotate(v1, -90)
+            p0 = math_.move(center[0], v0)
+            p1 = math_.move(center[0], v1)
+
+            cp0 = math_.move(p0, vcp0)
+            cp1 = math_.move(p1, vcp1)
+            self.currentPath.append((cp0, None, False, None, {}))
+            self.currentPath.append((cp1, None, False, None, {}))
+            self.currentPath.append((p1, 'curve', False, None, {}))
+            vcp0, vcp1 = (-vcp1[0], -vcp1[1]), vcp0
 
     def _one_point_sharp(self, p0):
         vs = [(0, -self.offset), (-self.offset, 0),
