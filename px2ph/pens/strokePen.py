@@ -1,20 +1,37 @@
-from fontTools.pens.pointPen import PointToSegmentPen
+import math
+
+from fontTools.pens.pointPen import PointToSegmentPen, SegmentToPointPen
 
 import px2ph.utils.math as math_
 
 
 class StrokeToShapeSegmentPen(PointToSegmentPen):
     '''
-    Convert output of a PointPen to a contour that will be processed by a SegmentPen
-    It converts an outline as if it had a stroke width by defining the
-    outline that would have surrounded it.
-
-    The given segment_pen will deal with linejoins and linecaps to finish the
-    contour. That contour can then be processed by other pens or point pens.
+    Convert output of a PointPen to a contour that will be processed by a
+    SegmentPen. It converts an outline as if it had a stroke width by defining
+    the outline that would have surrounded it.
     '''
 
-    def __init__(self, segment_pen, stroke_width, outputImpliedClosingLine=False):
+    def __init__(self, out_pen, stroke_width, segment_pen=None,
+                 linecap='sharp', linejoin='bevel',
+                 outputImpliedClosingLine=False):
+        if segment_pen is None:
+            segment_pen = SegmentToPointPen(out_pen)
+        else:
+            segment_pen = segment_pen(out_pen)
+
         super().__init__(segment_pen, outputImpliedClosingLine)
+
+        try:
+            self._linecap = getattr(self, '_linecap_' + linecap)
+            self._one_point = getattr(self, '_one_point_' + linecap)
+        except AttributeError:
+            raise NameError('No method for linecap: ' + linecap)
+        try:
+            self._linejoin = getattr(self, '_linejoin_' + linejoin)
+        except AttributeError:
+            raise NameError('No method for linejoin: ' + linejoin)
+
         self.offset = stroke_width/2
 
     def endPath(self):
@@ -30,11 +47,11 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
 
     def _stroke_to_contour(self, points):
         """
-        Sort of _flushContour method that will be triggered before the inherited
-        _flushContour.
-        It transforms a simple stroke contour into a shape contour by drawing its
-        parallels and then calls the real endPath() method with 'super()' to
-        trigger the basic behavior of a "PointToSegmentPen' pen.
+        Sort of _flushContour method that will be triggered before the
+        inherited _flushContour.
+        It transforms a simple stroke contour into a shape contour by drawing
+        its parallels and then calls the real endPath() method with 'super()'
+        to trigger the basic behavior of a "PointToSegmentPen' pen.
         """
         pointslen = len(points)
         open = points[0][1] == 'move'
@@ -51,13 +68,14 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
                 self._linecap(points[i], points[i+1 if i == 0 else i-1])
                 continue
             p0, p1 = points[i-1], points[i]
-            p2 = points[i+1] if i != pointslen-1  else points[0]
+            p2 = points[i+1] if i != pointslen-1 else points[0]
             self._linejoin(p0, p1, p2)
 
         self.innerPath.reverse()
-        # merge paths if contour is an open contour else ask to draw two contours
+        # merge paths if contour is an open contour
         if open:
             self.currentPath += self.innerPath
+        # else ask to draw two contours
         else:
             super().endPath()
             self.beginPath()
@@ -65,13 +83,9 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         super().endPath()
         self.innerPath = None
 
-    def _linecap(self, p0, p1):
-        uv = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
-        for theta, segmentType in [(-90, 'line'), (180, 'line'), (90, 'line')]:
-            pt = math_.move(p0[0], math_.rotate(uv, theta))
-            self.currentPath.append((pt, segmentType, False, None, {}))
+    # LINEJOIN METHODS
 
-    def _linejoin(self, p0, p1, p2):
+    def _linejoin_bevel(self, p0, p1, p2):
         s0a, s0b = math_.double_parallel((p0[0], p1[0]), self.offset)
         s1a, s1b = math_.double_parallel((p1[0], p2[0]), self.offset)
         i0 = math_.intersect(s0a, s1a)
@@ -88,7 +102,43 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         else:
             self.innerPath.append((i1, 'line', False, None, {}))
 
-    def _one_point(self, pt):
-        vs = [(0, -self.offset), (self.offset, 0), (0, self.offset), (-self.offset, 0)]
+    def _linejoin_miter(self, p0, p1, p2):
+        raise NotImplementedError
+
+    def _linejoin_round(self, p0, p1, p2):
+        raise NotImplementedError
+
+    # LINECAPS METHODS
+
+    def _linecap_butt(self, p0, p1):
+        raise NotImplementedError
+
+    def _linecap_square(self, p0, p1):
+        raise NotImplementedError
+
+    def _linecap_round(self, p0, p3):
+        raise NotImplementedError
+
+    def _linecap_sharp(self, p0, p1):
+        uv = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
+        for theta, segmentType in [(-90, 'line'), (180, 'line'), (90, 'line')]:
+            pt = math_.move(p0[0], math_.rotate(uv, theta))
+            self.currentPath.append((pt, segmentType, False, None, {}))
+
+    # ONE POINT LINECAPS METHODS
+
+    def _one_point_butt(self, p0, p1):
+        raise NotImplementedError
+
+    def _one_point_square(self, p0, p1):
+        raise NotImplementedError
+
+    def _one_point_round(self, p0, p3):
+        raise NotImplementedError
+
+    def _one_point_sharp(self, p0):
+        vs = [(0, -self.offset), (self.offset, 0),
+              (0, self.offset), (-self.offset, 0)]
         for v in vs:
-            self.currentPath.append((math_.move(pt[0], v), 'line', False, None, {}))
+            pt = math_.move(p0[0], v)
+            self.currentPath.append((pt, 'line', False, None, {}))

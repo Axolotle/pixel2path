@@ -1,12 +1,11 @@
 from os import path
 
 from fontTools.misc.transform import Identity, Transform
-from fontTools.pens.pointPen import SegmentToPointPen
 from defcon import Font
 
 from px2ph.tools.glyphset import parse_range
 from px2ph.px2pt import px2pt
-from px2ph.pens.strokePen import StrokeToShapeSegmentPen
+from px2ph.pens import StrokeToShapeSegmentPen
 
 
 def parse_font_info(data):
@@ -30,8 +29,9 @@ def px2font(input, info, output):
 
     px_size = info['pixelSizeInEm']
     scale_tf = Transform(px_size, 0, 0, px_size, 0, 0)
-    # transformation that inverts the y axis coordinates, translate so the descender
-    # part of the glyph falls beyond the baseline and translate 'half' a pixel
+    # Transformation that inverts the y axis coordinates, translate so the
+    # descender part of the glyph falls beyond the baseline and translate
+    # 'half' a pixel
     UFO_tf = scale_tf.transform(
         (1, 0, 0, -1, 0.5, input['grid'][1] + info['descender'] - 0.5))
 
@@ -44,7 +44,7 @@ def px2font(input, info, output):
         glyph = font.newGlyph(glyph_set[glyph_repr]['name'])
         glyph.unicodes = [glyph_repr]
         out_pen = glyph.getPointPen()
-        pen = StrokeToShapeSegmentPen(SegmentToPointPen(out_pen), px_size)
+        pen = StrokeToShapeSegmentPen(out_pen, px_size, **output['vectorize'])
 
         for contour in contours:
             # contour = UFO_tf.transformPoints(contour)
@@ -60,7 +60,6 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
 
     from px2ph.utils.yaml import get_yaml
-
 
     parser = ArgumentParser(
         prog='px2ph.tools.grid',
