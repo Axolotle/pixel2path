@@ -103,7 +103,12 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
             self.innerPath.append((i1, 'line', False, None, {}))
 
     def _linejoin_miter(self, p0, p1, p2):
-        raise NotImplementedError
+        s0a, s0b = math_.double_parallel((p0[0], p1[0]), self.offset)
+        s1a, s1b = math_.double_parallel((p1[0], p2[0]), self.offset)
+        i0 = math_.intersect(s0a, s1a, force=True)
+        i1 = math_.intersect(s0b, s1b, force=True)
+        self.currentPath.append((i0, 'line', False, None, {}))
+        self.innerPath.append((i1, 'line', False, None, {}))
 
     def _linejoin_round(self, p0, p1, p2):
         raise NotImplementedError
