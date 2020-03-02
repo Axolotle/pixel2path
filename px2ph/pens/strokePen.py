@@ -13,7 +13,7 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
     '''
 
     def __init__(self, out_pen, stroke_width, segment_pen=None,
-                 linecap='sharp', linejoin='bevel',
+                 linecap='square', linejoin='miter',
                  outputImpliedClosingLine=False):
         if segment_pen is None:
             segment_pen = SegmentToPointPen(out_pen)
@@ -114,31 +114,40 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
         raise NotImplementedError
 
     def _linecap_square(self, p0, p1):
-        raise NotImplementedError
+        v0 = math_.scale(math_.uvector(p1[0], p0[0]), self.offset)
+        v1 = math_.rotate(v0, 90.0)
+        a = math_.move(p0[0], (v0[0] + v1[0], v0[1] + v1[1]))
+        b = math_.move(p0[0], (v0[0] - v1[0], v0[1] - v1[1]))
+        self.currentPath.append((a, 'line', False, None, {}))
+        self.currentPath.append((b, 'line', False, None, {}))
 
     def _linecap_round(self, p0, p3):
         raise NotImplementedError
 
     def _linecap_sharp(self, p0, p1):
-        uv = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
+        v = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
         for theta, segmentType in [(-90, 'line'), (180, 'line'), (90, 'line')]:
-            pt = math_.move(p0[0], math_.rotate(uv, theta))
+            pt = math_.move(p0[0], math_.rotate(v, theta))
             self.currentPath.append((pt, segmentType, False, None, {}))
 
     # ONE POINT LINECAPS METHODS
 
-    def _one_point_butt(self, p0, p1):
+    def _one_point_butt(self, p0):
         raise NotImplementedError
 
-    def _one_point_square(self, p0, p1):
-        raise NotImplementedError
+    def _one_point_square(self, p0):
+        vs = [(self.offset, -self.offset), (-self.offset, -self.offset),
+              (-self.offset, self.offset), (self.offset, self.offset)]
+        for v in vs:
+            pt = math_.move(p0[0], v)
+            self.currentPath.append((pt, 'line', False, None, {}))
 
-    def _one_point_round(self, p0, p3):
+    def _one_point_round(self, p0):
         raise NotImplementedError
 
     def _one_point_sharp(self, p0):
-        vs = [(0, -self.offset), (self.offset, 0),
-              (0, self.offset), (-self.offset, 0)]
+        vs = [(0, -self.offset), (-self.offset, 0),
+              (0, self.offset), (self.offset, 0)]
         for v in vs:
             pt = math_.move(p0[0], v)
             self.currentPath.append((pt, 'line', False, None, {}))
