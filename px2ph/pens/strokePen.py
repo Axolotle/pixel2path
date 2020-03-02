@@ -111,7 +111,10 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
     # LINECAPS METHODS
 
     def _linecap_butt(self, p0, p1):
-        raise NotImplementedError
+        v = math_.scale(math_.uvector(p0[0], p1[0]), self.offset)
+        for theta, segmentType in [(-90, 'line'), (90, 'line')]:
+            pt = math_.move(p0[0], math_.rotate(v, theta))
+            self.currentPath.append((pt, segmentType, False, None, {}))
 
     def _linecap_square(self, p0, p1):
         v0 = math_.scale(math_.uvector(p1[0], p0[0]), self.offset)
@@ -133,7 +136,11 @@ class StrokeToShapeSegmentPen(PointToSegmentPen):
     # ONE POINT LINECAPS METHODS
 
     def _one_point_butt(self, p0):
-        raise NotImplementedError
+        """
+        Returns nothing since a single point with linecap='butt' as no possible
+        shape.
+        """
+        pass
 
     def _one_point_square(self, p0):
         vs = [(self.offset, -self.offset), (-self.offset, -self.offset),
